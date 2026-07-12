@@ -14,10 +14,27 @@
  *   AI_MODEL   — OpenRouter model ID (default: google/gemini-2.0-flash-001)
  *   SITE_URL   — your live domain for the HTTP-Referer header (default: https://flicoapp.in)
  *
- * Logs (visible in Cloudflare Pages → Deployments → Real-time logs):
- *   [FLICO] key present, model, message count on every request
- *   [FLICO] OpenRouter HTTP status + full error body on failures
- *   [FLICO] chunks forwarded count on successful streams
+ * ── Debug mode ────────────────────────────────────────────────────────────────
+ * Add the header  X-Debug: true  to any POST request and the function returns
+ * JSON instead of SSE with a full diagnostic snapshot:
+ *
+ *   {
+ *     "debug": true,
+ *     "keyPresent": true,
+ *     "keyPrefix": "sk-or-v1-ab…",
+ *     "model": "google/gemini-2.0-flash-001",
+ *     "siteUrl": "https://flicoapp.in",
+ *     "reachedOpenRouter": true,
+ *     "openRouterStatus": 200,
+ *     "openRouterOk": true,
+ *     "openRouterErrorBody": null
+ *   }
+ *
+ * Example:
+ *   curl -s -X POST https://<your-pages-domain>/api/chat \
+ *        -H "Content-Type: application/json" \
+ *        -H "X-Debug: true" \
+ *        -d '{"message":"ping"}' | jq
  */
 
 const DEFAULT_MODEL  = 'google/gemini-2.0-flash-001';
@@ -26,7 +43,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Debug',
 };
 
 // ── CORS preflight ────────────────────────────────────────────────────────────
@@ -45,13 +62,56 @@ export async function onRequestPost(context) {
   const model   = env.AI_MODEL   || DEFAULT_MODEL;
   const siteUrl = env.SITE_URL   || 'https://flicoapp.in';
 
+  // ── Is this a debug probe? ────────────────────────────────────────────────
+  const isDebug = request.headers.get('X-Debug') === 'true';
+
+  // ── Parse request body ────────────────────────────────────────────────────
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    if (isDebug) {
+      return debugResponse({
+        keyPresent: !!apiKey,
+        keyPrefix:  apiKey ? apiKey.slice(0, 12) + '…' : 'MISSING',
+        model,
+        siteUrl,
+        parseError: 'Invalid JSON body',
+        reachedOpenRouter: false,
+        openRouterStatus: null,
+        openRouterOk: null,
+        openRouterErrorBody: null,
+      });
+    }
+    return jsonError(400, 'Invalid JSON body — could not parse as JSON.');
+  }
+
+  const { message, lang, mode, history, systemPrompt } = body ?? {};
+
+  if (!message || typeof message !== 'string') {
+    if (isDebug) {
+      return debugResponse({
+        keyPresent: !!apiKey,
+        keyPrefix:  apiKey ? apiKey.slice(0, 12) + '…' : 'MISSING',
+        model,
+        siteUrl,
+        parseError: 'Missing or invalid "message" field',
+        reachedOpenRouter: false,
+        openRouterStatus: null,
+        openRouterOk: null,
+        openRouterErrorBody: null,
+      });
+    }
+    return jsonError(400, 'Missing or invalid "message" field in request body.');
+  }
+
   // ── Diagnostic: log key presence + config on every request ───────────────
-  // (key value is never logged — only whether it is present)
   console.log('[FLICO] /api/chat called', JSON.stringify({
     keyPresent: !!apiKey,
     keyPrefix:  apiKey ? apiKey.slice(0, 12) + '…' : 'MISSING',
     model,
     siteUrl,
+    debug: isDebug,
   }));
 
   if (!apiKey) {
@@ -59,25 +119,23 @@ export async function onRequestPost(context) {
       '[FLICO] OPENROUTER_API_KEY is not set.',
       'Add it in Cloudflare Pages → Settings → Environment variables → Production + Preview.'
     );
+    if (isDebug) {
+      return debugResponse({
+        keyPresent: false,
+        keyPrefix:  'MISSING',
+        model,
+        siteUrl,
+        reachedOpenRouter: false,
+        openRouterStatus: null,
+        openRouterOk: null,
+        openRouterErrorBody: null,
+      });
+    }
     return jsonError(
       503,
       'Server misconfiguration: OPENROUTER_API_KEY is not set. ' +
       'Add it in Cloudflare Pages → Settings → Environment variables.'
     );
-  }
-
-  // ── Parse request body ────────────────────────────────────────────────────
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return jsonError(400, 'Invalid JSON body — could not parse as JSON.');
-  }
-
-  const { message, lang, mode, history, systemPrompt } = body ?? {};
-
-  if (!message || typeof message !== 'string') {
-    return jsonError(400, 'Missing or invalid "message" field in request body.');
   }
 
   // ── Build messages array (OpenAI / OpenRouter format) ─────────────────────
@@ -100,7 +158,9 @@ export async function onRequestPost(context) {
 
   console.log('[FLICO] Calling OpenRouter —', JSON.stringify({ model, messageCount: messages.length }));
 
-  // ── Call OpenRouter with streaming ────────────────────────────────────────
+  // ── Call OpenRouter ────────────────────────────────────────────────────────
+  // In debug mode: non-streaming so we can read the full response body.
+  // In normal mode: streaming SSE.
   let upstream;
   try {
     upstream = await fetch(OPENROUTER_URL, {
@@ -114,17 +174,59 @@ export async function onRequestPost(context) {
       body: JSON.stringify({
         model,
         messages,
-        stream:      true,
-        max_tokens:  1024,
+        stream:      !isDebug,   // non-streaming in debug mode for easy body read
+        max_tokens:  isDebug ? 16 : 1024,
         temperature: 0.7,
       }),
     });
   } catch (err) {
     console.error('[FLICO] fetch to OpenRouter threw (network error):', err.message);
+    if (isDebug) {
+      return debugResponse({
+        keyPresent: true,
+        keyPrefix:  apiKey.slice(0, 12) + '…',
+        model,
+        siteUrl,
+        reachedOpenRouter: false,
+        networkError: err.message,
+        openRouterStatus: null,
+        openRouterOk: null,
+        openRouterErrorBody: null,
+      });
+    }
     return jsonError(502, `Could not reach OpenRouter: ${err.message}`);
   }
 
-  // ── Forward OpenRouter errors verbatim ───────────────────────────────────
+  // ── Debug mode: return diagnostic snapshot and stop ───────────────────────
+  if (isDebug) {
+    let openRouterErrorBody = null;
+    let openRouterSuccessPreview = null;
+
+    if (!upstream.ok) {
+      try { openRouterErrorBody = await upstream.text(); } catch { openRouterErrorBody = '(unreadable)'; }
+      console.error('[FLICO][debug] OpenRouter error', upstream.status, openRouterErrorBody);
+    } else {
+      // Read a small preview of the success body to confirm the model replied
+      try {
+        const txt = await upstream.text();
+        openRouterSuccessPreview = txt.slice(0, 200);
+      } catch { openRouterSuccessPreview = '(unreadable)'; }
+    }
+
+    return debugResponse({
+      keyPresent: true,
+      keyPrefix:  apiKey.slice(0, 12) + '…',
+      model,
+      siteUrl,
+      reachedOpenRouter: true,
+      openRouterStatus: upstream.status,
+      openRouterOk: upstream.ok,
+      openRouterErrorBody,
+      openRouterSuccessPreview,
+    });
+  }
+
+  // ── Forward OpenRouter errors verbatim (normal mode) ─────────────────────
   if (!upstream.ok) {
     let errorBody = '(could not read response body)';
     try { errorBody = await upstream.text(); } catch { /* ignore */ }
@@ -134,8 +236,6 @@ export async function onRequestPost(context) {
       '— full error body:', errorBody
     );
 
-    // Return the real status code + full error body so the browser console
-    // and any monitoring can see exactly what OpenRouter said.
     return new Response(
       JSON.stringify({ error: `OpenRouter error ${upstream.status}`, detail: errorBody }),
       {
@@ -146,19 +246,17 @@ export async function onRequestPost(context) {
   }
 
   // ── Re-stream as SSE in the format the frontend expects ───────────────────
-  // Frontend expects lines: data: {"text":"<token>"}\n\n
   const { readable, writable } = new TransformStream();
   const writer  = writable.getWriter();
   const encoder = new TextEncoder();
 
-  // Run in background — return the readable stream immediately.
   streamUpstreamToClient(upstream.body, writer, encoder);
 
   return new Response(readable, {
     headers: {
       ...CORS_HEADERS,
-      'Content-Type':    'text/event-stream; charset=utf-8',
-      'Cache-Control':   'no-cache, no-store',
+      'Content-Type':      'text/event-stream; charset=utf-8',
+      'Cache-Control':     'no-cache, no-store',
       'X-Accel-Buffering': 'no',
     },
   });
@@ -166,10 +264,20 @@ export async function onRequestPost(context) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function debugResponse(data) {
+  return new Response(
+    JSON.stringify({ debug: true, ...data }, null, 2),
+    {
+      status: 200,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    }
+  );
+}
+
 async function streamUpstreamToClient(upstreamBody, writer, encoder) {
   const reader  = upstreamBody.getReader();
   const decoder = new TextDecoder();
-  let buffer         = '';
+  let buffer          = '';
   let chunksForwarded = 0;
 
   try {
@@ -179,7 +287,6 @@ async function streamUpstreamToClient(upstreamBody, writer, encoder) {
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Split on double-newline (SSE event boundary)
       const events = buffer.split('\n\n');
       buffer = events.pop() ?? '';
 
@@ -194,7 +301,7 @@ async function streamUpstreamToClient(upstreamBody, writer, encoder) {
         try {
           parsed = JSON.parse(payload);
         } catch {
-          continue; // skip malformed chunks
+          continue;
         }
 
         const delta = parsed?.choices?.[0]?.delta?.content;
