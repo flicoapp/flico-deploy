@@ -11,37 +11,59 @@
  *   OPENROUTER_API_KEY  — your OpenRouter API key (sk-or-v1-...)
  *
  * Optional:
- *   AI_MODEL            — OpenRouter model ID (default: google/gemini-2.0-flash-001)
- *   SITE_URL            — your Cloudflare Pages URL for the HTTP-Referer header
+ *   AI_MODEL   — OpenRouter model ID (default: google/gemini-2.0-flash-001)
+ *   SITE_URL   — your live domain for the HTTP-Referer header (default: https://flicoapp.in)
+ *
+ * Logs (visible in Cloudflare Pages → Deployments → Real-time logs):
+ *   [FLICO] key present, model, message count on every request
+ *   [FLICO] OpenRouter HTTP status + full error body on failures
+ *   [FLICO] chunks forwarded count on successful streams
  */
 
-const DEFAULT_MODEL = 'google/gemini-2.0-flash-001';
+const DEFAULT_MODEL  = 'google/gemini-2.0-flash-001';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// ── CORS preflight ───────────────────────────────────────────────────────────
+// ── CORS preflight ────────────────────────────────────────────────────────────
 export async function onRequestOptions() {
   return new Response(null, {
     status: 204,
-    headers: {
-      ...CORS_HEADERS,
-      'Access-Control-Max-Age': '86400',
-    },
+    headers: { ...CORS_HEADERS, 'Access-Control-Max-Age': '86400' },
   });
 }
 
-// ── Main handler ─────────────────────────────────────────────────────────────
+// ── Main handler ──────────────────────────────────────────────────────────────
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  const apiKey = env.OPENROUTER_API_KEY;
+  const apiKey  = env.OPENROUTER_API_KEY;
+  const model   = env.AI_MODEL   || DEFAULT_MODEL;
+  const siteUrl = env.SITE_URL   || 'https://flicoapp.in';
+
+  // ── Diagnostic: log key presence + config on every request ───────────────
+  // (key value is never logged — only whether it is present)
+  console.log('[FLICO] /api/chat called', JSON.stringify({
+    keyPresent: !!apiKey,
+    keyPrefix:  apiKey ? apiKey.slice(0, 12) + '…' : 'MISSING',
+    model,
+    siteUrl,
+  }));
+
   if (!apiKey) {
-    return jsonError(500, 'OPENROUTER_API_KEY is not configured on this deployment.');
+    console.error(
+      '[FLICO] OPENROUTER_API_KEY is not set.',
+      'Add it in Cloudflare Pages → Settings → Environment variables → Production + Preview.'
+    );
+    return jsonError(
+      503,
+      'Server misconfiguration: OPENROUTER_API_KEY is not set. ' +
+      'Add it in Cloudflare Pages → Settings → Environment variables.'
+    );
   }
 
   // ── Parse request body ────────────────────────────────────────────────────
@@ -49,26 +71,23 @@ export async function onRequestPost(context) {
   try {
     body = await request.json();
   } catch {
-    return jsonError(400, 'Invalid JSON body.');
+    return jsonError(400, 'Invalid JSON body — could not parse as JSON.');
   }
 
   const { message, lang, mode, history, systemPrompt } = body ?? {};
 
   if (!message || typeof message !== 'string') {
-    return jsonError(400, 'Missing or invalid "message" field.');
+    return jsonError(400, 'Missing or invalid "message" field in request body.');
   }
 
   // ── Build messages array (OpenAI / OpenRouter format) ─────────────────────
   /** @type {Array<{role: string, content: string}>} */
   const messages = [];
 
-  // System prompt is built on the client from FLICO's KB and sent here so the
-  // Worker never needs to hardcode brand facts — they live in the HTML.
   if (systemPrompt && typeof systemPrompt === 'string') {
     messages.push({ role: 'system', content: systemPrompt });
   }
 
-  // Recent conversation history (Gemini uses "model"; OpenRouter uses "assistant")
   if (Array.isArray(history)) {
     for (const turn of history) {
       if (!turn?.text) continue;
@@ -79,53 +98,68 @@ export async function onRequestPost(context) {
 
   messages.push({ role: 'user', content: message });
 
-  // ── Call OpenRouter with streaming ────────────────────────────────────────
-  const model = env.AI_MODEL || DEFAULT_MODEL;
-  const siteUrl = env.SITE_URL || 'https://flico.pages.dev';
+  console.log('[FLICO] Calling OpenRouter —', JSON.stringify({ model, messageCount: messages.length }));
 
+  // ── Call OpenRouter with streaming ────────────────────────────────────────
   let upstream;
   try {
     upstream = await fetch(OPENROUTER_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': siteUrl,
-        'X-Title': 'FLICO AI Assistant',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type':  'application/json',
+        'HTTP-Referer':  siteUrl,
+        'X-Title':       'FLICO AI Assistant',
       },
       body: JSON.stringify({
         model,
         messages,
-        stream: true,
-        max_tokens: 1024,
+        stream:      true,
+        max_tokens:  1024,
         temperature: 0.7,
       }),
     });
   } catch (err) {
+    console.error('[FLICO] fetch to OpenRouter threw (network error):', err.message);
     return jsonError(502, `Could not reach OpenRouter: ${err.message}`);
   }
 
+  // ── Forward OpenRouter errors verbatim ───────────────────────────────────
   if (!upstream.ok) {
-    const detail = await upstream.text().catch(() => '');
-    return jsonError(upstream.status, `OpenRouter returned ${upstream.status}: ${detail}`);
+    let errorBody = '(could not read response body)';
+    try { errorBody = await upstream.text(); } catch { /* ignore */ }
+
+    console.error(
+      '[FLICO] OpenRouter returned HTTP', upstream.status,
+      '— full error body:', errorBody
+    );
+
+    // Return the real status code + full error body so the browser console
+    // and any monitoring can see exactly what OpenRouter said.
+    return new Response(
+      JSON.stringify({ error: `OpenRouter error ${upstream.status}`, detail: errorBody }),
+      {
+        status:  upstream.status,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      }
+    );
   }
 
-  // ── Re-stream as SSE in the format the frontend parser expects ────────────
-  // Frontend parser (in index.html) expects lines like:
-  //   data: {"text":"<token>"}\n\n
+  // ── Re-stream as SSE in the format the frontend expects ───────────────────
+  // Frontend expects lines: data: {"text":"<token>"}\n\n
   const { readable, writable } = new TransformStream();
-  const writer = writable.getWriter();
+  const writer  = writable.getWriter();
   const encoder = new TextEncoder();
 
-  // Run in background — do not await; return the readable immediately.
+  // Run in background — return the readable stream immediately.
   streamUpstreamToClient(upstream.body, writer, encoder);
 
   return new Response(readable, {
     headers: {
       ...CORS_HEADERS,
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-store',
-      'X-Accel-Buffering': 'no', // disable nginx buffering on some proxies
+      'Content-Type':    'text/event-stream; charset=utf-8',
+      'Cache-Control':   'no-cache, no-store',
+      'X-Accel-Buffering': 'no',
     },
   });
 }
@@ -133,9 +167,10 @@ export async function onRequestPost(context) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function streamUpstreamToClient(upstreamBody, writer, encoder) {
-  const reader = upstreamBody.getReader();
+  const reader  = upstreamBody.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer         = '';
+  let chunksForwarded = 0;
 
   try {
     while (true) {
@@ -146,10 +181,9 @@ async function streamUpstreamToClient(upstreamBody, writer, encoder) {
 
       // Split on double-newline (SSE event boundary)
       const events = buffer.split('\n\n');
-      buffer = events.pop() ?? ''; // keep incomplete trailing fragment
+      buffer = events.pop() ?? '';
 
       for (const evt of events) {
-        // Find the data line inside this SSE event
         const dataLine = evt.split('\n').find((l) => l.startsWith('data:'));
         if (!dataLine) continue;
 
@@ -165,13 +199,18 @@ async function streamUpstreamToClient(upstreamBody, writer, encoder) {
 
         const delta = parsed?.choices?.[0]?.delta?.content;
         if (typeof delta === 'string' && delta.length > 0) {
-          const sseChunk = `data: ${JSON.stringify({ text: delta })}\n\n`;
-          await writer.write(encoder.encode(sseChunk));
+          chunksForwarded++;
+          await writer.write(encoder.encode(`data: ${JSON.stringify({ text: delta })}\n\n`));
         }
       }
     }
-  } catch {
-    // Stream ended or was aborted — close cleanly
+
+    console.log('[FLICO] Stream finished — chunks forwarded to client:', chunksForwarded);
+    if (chunksForwarded === 0) {
+      console.warn('[FLICO] Stream finished but zero text chunks were forwarded. Check model response format.');
+    }
+  } catch (err) {
+    console.error('[FLICO] Error while streaming to client:', err.message);
   } finally {
     try { await writer.close(); } catch { /* already closed */ }
   }

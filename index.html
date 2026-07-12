@@ -1932,7 +1932,7 @@
   //    { message, lang, mode, history, systemPrompt }
   //  and stream back SSE lines:  data: {"text":"<token>"}\n\n
   // ============================================================
-  const ASSISTANT_API_URL = '/api/chat'; // Cloudflare Pages Function (/api/chat)
+  const ASSISTANT_API_URL = '/api/chat'; // Cloudflare Pages Function
 
   const FORMSPREE_ENDPOINT = "https://formspree.io/f/meebwvpn";
   const WAITLIST_STORAGE_KEY     = "flico_waitlist_emails";
@@ -3506,7 +3506,11 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
           signal: controller.signal
         });
         if(!res.ok || !res.body){
-          console.error('[FLICO] /api/chat HTTP error:', res.status);
+          // Read and log the backend error body so the browser console shows exactly
+          // what /api/chat returned (e.g. missing key, OpenRouter error detail, etc.)
+          let errDetail = '';
+          try { errDetail = await res.text(); } catch { /* ignore */ }
+          console.error('[FLICO] /api/chat HTTP ' + res.status + ':', errDetail || '(no body)');
           throw new Error('assistant_api_' + res.status);
         }
 
@@ -3533,7 +3537,7 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
           }
         }
         if(!gotAnyText){
-          console.error('[FLICO] /api/chat returned an empty stream (no text chunks).');
+          console.error('[FLICO] /api/chat returned HTTP 200 but the SSE stream had zero text chunks. Check Cloudflare real-time logs for model errors.');
           throw new Error('assistant_api_empty');
         }
         return true;
@@ -4014,9 +4018,8 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
         if(box) box.remove();
         removeTypingIndicator();
         const fb = createTypedBubble();
-        // When the API failed AND no KB intent matched (intentId===null), result.text
-        // is the generic OUT_OF_SCOPE string which misleads the user into thinking
-        // their question was unrecognised. Show an API-error message instead.
+        // When the API failed AND no KB intent matched (intentId===null), result.text is
+        // the generic OUT_OF_SCOPE string which misleads. Show an API-error message instead.
         const fallbackText = (apiErr && result.intentId === null)
           ? (result.lang === 'hi' ? API_ERROR_MSG_HI : API_ERROR_MSG)
           : result.text;
