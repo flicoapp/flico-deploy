@@ -48,7 +48,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Debug',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Debug, X-User-Api-Key',
 };
 
 // ── CORS preflight ────────────────────────────────────────────────────────────
@@ -63,7 +63,9 @@ export async function onRequestOptions() {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  const apiKey  = env.OPENROUTER_API_KEY;
+  // User-supplied key (BYOK) overrides the server env key if present
+  const userKey = request.headers.get('X-User-Api-Key') ?? '';
+  const apiKey  = userKey.trim() || env.OPENAI_API_KEY || env.OPENROUTER_API_KEY;
   const model   = env.AI_MODEL   || DEFAULT_MODEL;
   const siteUrl = env.SITE_URL   || 'https://flicoapp.in';
 
