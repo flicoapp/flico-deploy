@@ -48,7 +48,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Debug, X-User-Api-Key',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Debug',
 };
 
 // ── CORS preflight ────────────────────────────────────────────────────────────
@@ -63,9 +63,7 @@ export async function onRequestOptions() {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  // User-supplied key (BYOK) overrides the server env key if present
-  const userKey = request.headers.get('X-User-Api-Key') ?? '';
-  const apiKey  = userKey.trim() || env.OPENAI_API_KEY || env.OPENROUTER_API_KEY;
+  const apiKey  = env.OPENROUTER_API_KEY;
   const model   = env.AI_MODEL   || DEFAULT_MODEL;
   const siteUrl = env.SITE_URL   || 'https://flicoapp.in';
 
@@ -143,11 +141,7 @@ export async function onRequestPost(context) {
         openRouterErrorBody: null,
       });
     }
-    return jsonError(
-      503,
-      'Server misconfiguration: OPENROUTER_API_KEY is not set. ' +
-      'Add it in Cloudflare Pages → Settings → Environment variables.'
-    );
+    return jsonError(503, 'AI service is temporarily unavailable.');
   }
 
   // ── Build messages array (OpenAI / OpenRouter format) ─────────────────────

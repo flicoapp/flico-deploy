@@ -1032,91 +1032,6 @@
     border-color:rgba(124,255,0,0.5);
     color:var(--green);
   }
-  .chat-header-actions button.key-active{
-    border-color:rgba(124,255,0,0.6);
-    color:var(--green);
-    background:rgba(124,255,0,0.08);
-  }
-
-  /* ── API-key popover ──────────────────────────────────────────── */
-  .chat-key-popover{
-    position:absolute;
-    top:54px;
-    right:10px;
-    width:270px;
-    background:#111820;
-    border:1px solid rgba(124,255,0,0.30);
-    border-radius:12px;
-    padding:14px 14px 12px;
-    z-index:200;
-    display:none;
-    flex-direction:column;
-    gap:8px;
-    box-shadow:0 8px 28px rgba(0,0,0,0.55);
-  }
-  .chat-key-popover.is-open{ display:flex; }
-  .chat-key-popover-title{
-    font-size:11px;
-    font-weight:700;
-    letter-spacing:.06em;
-    text-transform:uppercase;
-    color:rgba(124,255,0,0.85);
-    margin-bottom:2px;
-  }
-  .chat-key-popover-desc{
-    font-size:11px;
-    color:rgba(255,255,255,0.45);
-    line-height:1.45;
-    margin:0;
-  }
-  .chat-key-popover input[type="password"],
-  .chat-key-popover input[type="text"]{
-    width:100%;
-    box-sizing:border-box;
-    background:rgba(255,255,255,0.05);
-    border:1px solid rgba(255,255,255,0.12);
-    border-radius:7px;
-    color:#fff;
-    font-size:12px;
-    padding:7px 10px;
-    outline:none;
-    font-family:monospace;
-    transition:border-color .2s;
-  }
-  .chat-key-popover input:focus{
-    border-color:rgba(124,255,0,0.5);
-  }
-  .chat-key-popover-row{
-    display:flex;
-    gap:6px;
-  }
-  .chat-key-popover-row button{
-    flex:1;
-    padding:6px 0;
-    border-radius:7px;
-    font-size:11px;
-    font-weight:600;
-    cursor:pointer;
-    border:none;
-    transition:opacity .15s;
-  }
-  .chat-key-popover-row button:hover{ opacity:.85; }
-  .chat-key-btn-save{
-    background:rgba(124,255,0,0.85);
-    color:#000;
-  }
-  .chat-key-btn-clear{
-    background:rgba(255,255,255,0.08);
-    color:rgba(255,255,255,0.65);
-    border:1px solid rgba(255,255,255,0.10) !important;
-  }
-  .chat-key-status{
-    font-size:10px;
-    color:rgba(124,255,0,0.7);
-    min-height:13px;
-    text-align:center;
-  }
-
   .chat-messages{
     flex:1;
     overflow-y:auto;
@@ -2017,8 +1932,6 @@
   //  and stream back SSE lines:  data: {"text":"<token>"}\n\n
   // ============================================================
   const ASSISTANT_API_URL = '/api/chat'; // Cloudflare Pages Function
-  const FLICO_USER_API_KEY = 'flico_user_openrouter_key'; // localStorage key for BYOK
-
   const FORMSPREE_ENDPOINT = "https://formspree.io/f/meebwvpn";
   const WAITLIST_STORAGE_KEY     = "flico_waitlist_emails";
   const FLICO_ACCESS_REGISTRY_KEY = "flico_access_registry";
@@ -3578,12 +3491,9 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
       const controller = new AbortController();
       const timer = setTimeout(()=> controller.abort(), ASSISTANT_TIMEOUT_MS);
       try{
-        const reqHeaders = { 'Content-Type': 'application/json' };
-        const storedKey = localStorage.getItem(FLICO_USER_API_KEY) || '';
-        if(storedKey) reqHeaders['X-User-Api-Key'] = storedKey;
         const res = await fetch(ASSISTANT_API_URL, {
           method: 'POST',
-          headers: reqHeaders,
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message,
             lang,
@@ -4217,64 +4127,6 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
       if(e.key === 'Escape' && chatOpen) closeChat();
     });
 
-    // ── API-key popover ──────────────────────────────────────────────────────
-    (function(){
-      const keyBtn     = document.getElementById('chatKeyBtn');
-      const keyPopover = document.getElementById('chatKeyPopover');
-      const keyInput   = document.getElementById('chatKeyInput');
-      const keySave    = document.getElementById('chatKeySave');
-      const keyClear   = document.getElementById('chatKeyClear');
-      const keyStatus  = document.getElementById('chatKeyStatus');
-      if(!keyBtn || !keyPopover) return;
-
-      function syncBtnState(){
-        const has = !!(localStorage.getItem(FLICO_USER_API_KEY) || '').trim();
-        keyBtn.classList.toggle('key-active', has);
-        keyBtn.title = has ? 'Using your own API key' : 'Set your OpenRouter API key';
-      }
-      syncBtnState();
-
-      // Pre-fill input with saved key on open
-      keyBtn.addEventListener('click', function(e){
-        e.stopPropagation();
-        const open = keyPopover.classList.toggle('is-open');
-        if(open){
-          keyInput.value = localStorage.getItem(FLICO_USER_API_KEY) || '';
-          keyStatus.textContent = '';
-          keyInput.focus();
-        }
-      });
-
-      keySave.addEventListener('click', function(){
-        const val = keyInput.value.trim();
-        if(!val){ keyStatus.textContent = 'Enter a key first.'; return; }
-        localStorage.setItem(FLICO_USER_API_KEY, val);
-        keyStatus.textContent = '✓ Saved';
-        syncBtnState();
-        setTimeout(()=>{ keyPopover.classList.remove('is-open'); }, 900);
-      });
-
-      keyClear.addEventListener('click', function(){
-        localStorage.removeItem(FLICO_USER_API_KEY);
-        keyInput.value = '';
-        keyStatus.textContent = 'Cleared — using shared key.';
-        syncBtnState();
-        setTimeout(()=>{ keyPopover.classList.remove('is-open'); }, 900);
-      });
-
-      // Close popover on outside click
-      document.addEventListener('click', function(e){
-        if(!keyPopover.contains(e.target) && e.target !== keyBtn){
-          keyPopover.classList.remove('is-open');
-        }
-      });
-
-      // Save on Enter
-      keyInput.addEventListener('keydown', function(e){
-        if(e.key === 'Enter'){ e.preventDefault(); keySave.click(); }
-      });
-    })();
-
   });
 
   // ==========================================================
@@ -4374,23 +4226,8 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
       </div>
     </div>
     <div class="chat-header-actions">
-      <button type="button" id="chatKeyBtn" aria-label="Set OpenRouter API key" title="Use your own OpenRouter API key">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"/></svg>
-      </button>
       <button type="button" id="chatClose" aria-label="Close chat">✕</button>
     </div>
-  </div>
-
-  <!-- API-key popover -->
-  <div class="chat-key-popover" id="chatKeyPopover" role="dialog" aria-label="OpenRouter API key settings">
-    <div class="chat-key-popover-title">🔑 Your OpenRouter Key</div>
-    <p class="chat-key-popover-desc">Enter your own key to use your quota. Leave blank to use the shared key.</p>
-    <input type="password" id="chatKeyInput" placeholder="sk-or-v1-…" autocomplete="off" spellcheck="false">
-    <div class="chat-key-popover-row">
-      <button type="button" class="chat-key-btn-save" id="chatKeySave">Save</button>
-      <button type="button" class="chat-key-btn-clear" id="chatKeyClear">Clear</button>
-    </div>
-    <div class="chat-key-status" id="chatKeyStatus"></div>
   </div>
 
   <div class="chat-messages" id="chatMessages"></div>

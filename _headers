@@ -7,5 +7,5 @@
 /api/*
   Access-Control-Allow-Origin: *
   Access-Control-Allow-Methods: POST, OPTIONS
-  Access-Control-Allow-Headers: Content-Type, X-Debug, X-User-Api-Key
+  Access-Control-Allow-Headers: Content-Type, X-Debug
   Cache-Control: no-store
