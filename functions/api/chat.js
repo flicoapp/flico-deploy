@@ -11,18 +11,23 @@
  *   OPENROUTER_API_KEY  — your OpenRouter API key (sk-or-v1-...)
  *
  * Optional:
- *   AI_MODEL   — OpenRouter model ID (default: google/gemini-2.0-flash-001)
- *   SITE_URL   — your live domain for the HTTP-Referer header (default: https://flicoapp.in)
+ *   AI_MODEL      — OpenRouter model ID (default: google/gemini-2.5-flash)
+ *   SITE_URL      — your live domain for the HTTP-Referer header (default: https://flicoapp.in)
+ *   DEBUG_SECRET  — secret token that protects the debug endpoint (recommended)
  *
  * ── Debug mode ────────────────────────────────────────────────────────────────
- * Add the header  X-Debug: true  to any POST request and the function returns
- * JSON instead of SSE with a full diagnostic snapshot:
+ * Set DEBUG_SECRET in Cloudflare Pages → Settings → Environment variables,
+ * then pass it as the X-Debug header value.  The endpoint returns JSON instead
+ * of SSE with a full diagnostic snapshot.
+ *
+ * If DEBUG_SECRET is NOT set the old behaviour ("X-Debug: true") still works,
+ * but setting a secret is strongly recommended for production.
  *
  *   {
  *     "debug": true,
  *     "keyPresent": true,
  *     "keyPrefix": "sk-or-v1-ab…",
- *     "model": "google/gemini-2.0-flash-001",
+ *     "model": "google/gemini-2.5-flash",
  *     "siteUrl": "https://flicoapp.in",
  *     "reachedOpenRouter": true,
  *     "openRouterStatus": 200,
@@ -30,10 +35,10 @@
  *     "openRouterErrorBody": null
  *   }
  *
- * Example:
- *   curl -s -X POST https://<your-pages-domain>/api/chat \
+ * Example (with secret):
+ *   curl -s -X POST https://flicoapp.in/api/chat \
  *        -H "Content-Type: application/json" \
- *        -H "X-Debug: true" \
+ *        -H "X-Debug: my-secret-token" \
  *        -d '{"message":"ping"}' | jq
  */
 
@@ -63,7 +68,12 @@ export async function onRequestPost(context) {
   const siteUrl = env.SITE_URL   || 'https://flicoapp.in';
 
   // ── Is this a debug probe? ────────────────────────────────────────────────
-  const isDebug = request.headers.get('X-Debug') === 'true';
+  // If DEBUG_SECRET is set in env, the X-Debug header must equal that secret.
+  // If DEBUG_SECRET is not set, fall back to accepting the literal string "true".
+  // Wrong or missing value → treated as a normal (non-debug) request; no 401.
+  const debugSecret  = env.DEBUG_SECRET || 'true';
+  const debugHeader  = request.headers.get('X-Debug') ?? '';
+  const isDebug      = debugHeader.length > 0 && debugHeader === debugSecret;
 
   // ── Parse request body ────────────────────────────────────────────────────
   let body;
