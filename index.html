@@ -1932,7 +1932,7 @@
   //    { message, lang, mode, history, systemPrompt }
   //  and stream back SSE lines:  data: {"text":"<token>"}\n\n
   // ============================================================
-  const ASSISTANT_API_URL = '/api/chat'; // Cloudflare Pages Function
+  const ASSISTANT_API_URL = '/api/chat'; // Cloudflare Pages Function (/api/chat)
 
   const FORMSPREE_ENDPOINT = "https://formspree.io/f/meebwvpn";
   const WAITLIST_STORAGE_KEY     = "flico_waitlist_emails";
@@ -2625,6 +2625,8 @@
     // assistant would when it didn't catch something.
     const OUT_OF_SCOPE = "I'm not sure what you meant 😊 Could you explain a little more?";
     const OUT_OF_SCOPE_HI = "Mujhe thik se samajh nahi aaya 😊 Thoda aur explain kar sakte hain?";
+    const API_ERROR_MSG    = "I'm having trouble reaching the AI right now. Please try again in a moment. 🔄";
+    const API_ERROR_MSG_HI = "Abhi AI se connect nahi ho pa raha. Thodi der baad dobara try karein. 🔄";
     const PRIVACY_DEFLECT = "I can't share internal details like that, but I'd love to help with anything about FLICO itself! 😊";
 
     // "Unknown information" replies — varied phrasing, same meaning, reused wherever
@@ -3503,7 +3505,10 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
           }),
           signal: controller.signal
         });
-        if(!res.ok || !res.body) throw new Error('assistant_api_' + res.status);
+        if(!res.ok || !res.body){
+          console.error('[FLICO] /api/chat HTTP error:', res.status);
+          throw new Error('assistant_api_' + res.status);
+        }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -3527,7 +3532,10 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
             } catch(e){ /* ignore partial/malformed chunk */ }
           }
         }
-        if(!gotAnyText) throw new Error('assistant_api_empty');
+        if(!gotAnyText){
+          console.error('[FLICO] /api/chat returned an empty stream (no text chunks).');
+          throw new Error('assistant_api_empty');
+        }
         return true;
       } finally {
         clearTimeout(timer);
@@ -3999,13 +4007,20 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
         return box;
       }
 
-      function runFallback(){
+      function runFallback(apiErr){
         if(usedFallback) return;
         usedFallback = true;
+        if(apiErr) console.error('[FLICO] Chat API failure, showing fallback. Reason:', apiErr?.message || apiErr);
         if(box) box.remove();
         removeTypingIndicator();
         const fb = createTypedBubble();
-        fb.pushAll(result.text);
+        // When the API failed AND no KB intent matched (intentId===null), result.text
+        // is the generic OUT_OF_SCOPE string which misleads the user into thinking
+        // their question was unrecognised. Show an API-error message instead.
+        const fallbackText = (apiErr && result.intentId === null)
+          ? (result.lang === 'hi' ? API_ERROR_MSG_HI : API_ERROR_MSG)
+          : result.text;
+        fb.pushAll(fallbackText);
         fb.close();
         fb.whenDone.then((finalText)=> commitReply(finalText, result.intentId));
       }
@@ -4029,11 +4044,12 @@ LANGUAGE: Understand English, Hindi, Hinglish, mixed scripts, and common typos (
             box.close();
             box.whenDone.then((finalText)=> commitReply(finalText, result.intentId));
           } else {
-            runFallback();
+            runFallback(new Error('api_returned_no_text'));
           }
         }, remaining);
-      }).catch(()=>{
-        runFallback();
+      }).catch((err)=>{
+        console.error('[FLICO] streamAssistantReply threw:', err);
+        runFallback(err);
       });
     }
 
