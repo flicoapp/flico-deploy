@@ -2974,16 +2974,8 @@
         priority:1,
         triggers:[['ok'],['okay'],['k'],['done'],['perfect'],['exactly'],['true'],['yes'],['no'],['maybe'],['hmm'],['theek'],['thik'],['let','s','go'],['lets','go'],['chalo']],
         respond:(ctx, lang)=> lang === 'hi'
-          ? [
-              `Theek hai! 👍 Aur kuch FLICO ke baare mein poochna ho toh batayein.`,
-              `Samjha! Kuch aur jaanna ho toh main yahan hoon.`,
-              `Accha! Kya aur kuch FLICO se related help chahiye?`
-            ]
-          : [
-              `Got it! 👍 Let me know if there's anything else about FLICO you'd like to know.`,
-              `Sounds good! I'm here if you've got more questions.`,
-              `Cool! Anything else FLICO-related I can help with?`
-            ]
+          ? [`Theek hai! 👍`,`Samjha!`,`Accha.`,`Bilkul! 😊`,`👍`]
+          : [`Got it!`,`Sounds good!`,`Cool. 👍`,`Okay!`,`Got it. 😊`]
       },
       {
         id:'about',
@@ -3371,7 +3363,9 @@
     // that offline fallback text, matched to the topic so a failed request
     // still feels relevant instead of generic.
     const LOCAL_ONLY_INTENT_IDS = new Set([
-      'privacy-internal'   // safety deflection — must never be left to the model
+      'privacy-internal',  // safety deflection — must never be left to the model
+      'casual-ack',        // one-word reactions stay local — no need for Gemini
+      'pure-reaction',     // emoji / filler — always answered locally
     ]);
 
     // Strong system prompt (brand voice + behavior contract) sent with every
@@ -3744,8 +3738,76 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       return tokens.length > 0 && tokens.length <= 3 && tokens.every(t => FOLLOWUP_ONLY_WORDS.has(t));
     }
 
+    // Reactions, acknowledgements, filler words, and emoji-only messages
+    // that should never trigger a long reply.
+    const PURE_REACTION_WORDS = new Set([
+      'oo','ooo','oooo','ooooo','oh','ah','aah','ahh','ooh','oof',
+      'acha','accha','achha','achaa','haan','han','hmm','hm','hmmm','hmmmm',
+      'lol','haha','hehe','hihi','lmao','omg','wow','woww','aww','aw',
+      'nice','cool','great','noted','gotcha','alrighty','fine','indeed',
+      'ok','okay','k','kk','kkk','ya','yep','yup','yea','yeah',
+      'sure','right','agree','true','exactly','perfect','done',
+      'interesting','impressive','amazing','awesome','superb','brilliant',
+    ]);
+
+    // Emoji-only regex — matches strings that contain only emoji codepoints and whitespace
+    const EMOJI_ONLY_RE = /^[\p{Emoji}\s]+$/u;
+
+    function isPureReaction(raw){
+      const t = raw.trim();
+      if(!t) return false;
+      if(EMOJI_ONLY_RE.test(t)) return true;                                   // pure emoji
+      const word = t.toLowerCase().replace(/[!?.,;:]+$/, '');
+      return PURE_REACTION_WORDS.has(word) && !t.includes(' ');                // single filler word
+    }
+
+    // Returns a short, natural reply that mirrors the user's energy.
+    function getReactionReply(raw, lang){
+      const t = raw.trim();
+      const w = t.toLowerCase().replace(/[!?.,;:]+$/, '');
+
+      // Specific emoji echoes
+      if(t === '👍') return '👍';
+      if(t === '👌') return '👌';
+      if(t === '🙂' || t === '😊') return '😊';
+      if(t === '😄' || t === '😁') return '😄';
+      if(t === '😂') return '😂';
+      if(t === '😅') return '😅';
+      if(t === '❤️' || t === '❤') return '❤️';
+      if(t === '🔥') return '🔥';
+      if(t === '💯') return '💯';
+      if(t === '🙌') return '🙌';
+      if(EMOJI_ONLY_RE.test(t)) return t;    // echo any other emoji as-is
+
+      // Filler words
+      if(['oo','ooo','oooo','ooooo'].includes(w))            return 'Haha 😄';
+      if(w === 'oh')                                          return lang === 'hi' ? 'Haan! 😊' : 'I see.';
+      if(['acha','accha','achha','achaa'].includes(w))        return lang === 'hi' ? 'Theek hai 👍' : 'Got it.';
+      if(['haan','han'].includes(w))                          return lang === 'hi' ? '😊' : 'Okay.';
+      if(['hmm','hm','hmmm','hmmmm'].includes(w))            return '👍';
+      if(['k','kk','kkk'].includes(w))                        return 'Okay.';
+      if(['lol','haha','hehe','hihi','lmao'].includes(w))    return '😄';
+      if(['wow','woww'].includes(w))                          return '🎉';
+      if(['nice','cool','great','awesome','superb'].includes(w)) return '😊';
+      if(['aww','aw'].includes(w))                            return '🥰';
+      if(w === 'omg')                                         return '😮';
+      if(w === 'oof')                                         return '😅';
+      if(['ok','okay','sure','right','yep','yup','ya','yeah','yea'].includes(w)) return lang === 'hi' ? 'Theek hai 👍' : 'Got it.';
+
+      return lang === 'hi' ? '👍' : 'Okay.';
+    }
+
     function getResponse(rawText, ctx){
       const lang = detectLanguage(rawText);
+
+      // ── Pure reaction / emoji check (before tokenizing) ───────────────────
+      // Emojis strip to nothing after normalize(), and single filler words
+      // (Oo, Hmm, Acha…) don't deserve a long reply. Catch them here so they
+      // never reach the intent engine or Gemini.
+      if(isPureReaction(rawText.trim())){
+        return { text: getReactionReply(rawText.trim(), lang), intentId: 'pure-reaction', lang, route:'local' };
+      }
+
       // Devanagari-script words are mapped to their Roman equivalents before tokenizing,
       // so the same Roman-Hindi trigger phrases still match — reply is always Roman Hindi.
       const preprocessed = transliterateDevanagari(rawText);
@@ -3753,8 +3815,8 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
       if(tokens.length === 0){
         return { text: lang === 'hi'
-          ? "Thoda aur bataiye? FLICO se related kuch bhi pooch sakte hain! 😊"
-          : "Could you tell me a bit more? I'm happy to help with anything FLICO-related! 😊", intentId: null, lang, route:'local' };
+          ? "Thoda aur bataiye? Kuch bhi pooch sakte hain! 😊"
+          : "Could you tell me a bit more? Happy to help! 😊", intentId: null, lang, route:'local' };
       }
 
       let best = null, bestScore = 0;
