@@ -2385,8 +2385,8 @@
   .chat-msg.bot p,
   .chat-msg.bot li{
     font-weight:400;
-    line-height:1.6;
-    letter-spacing:0.01em;
+    line-height:1.65;
+    letter-spacing:0.15px;
   }
   .chat-msg.bot > *:not(:first-child){ margin-top:13px; }
   .chat-msg.bot strong{ font-weight:600; }
@@ -2431,8 +2431,8 @@
     width:36px;
     height:4px;
     border-radius:9999px;
-    background:#7ED321;
-    box-shadow:0 0 6px rgba(126,211,33,0.18);
+    background:#78C841;
+    box-shadow:0 0 6px rgba(120,200,65,0.12);
     animation:flicoSignatureLine 1050ms ease-in-out infinite;
   }
   @keyframes flicoSignatureLine{
@@ -2490,12 +2490,13 @@
     box-shadow:0 0 0 3px rgba(120,230,26,0.08);
   }
 
-  /* Send button -- true circle, perfectly centered black icon on the
-     flat green fill (stronger contrast than white, reads premium),
-     equal padding, smooth press animation, no heavy glow. */
+  /* Send button -- true circle, perfectly centered black icon. Background
+     is a slightly darkened green (not the raw --green token) so the black
+     icon reads with stronger contrast; equal padding, smooth press
+     animation, no heavy glow. */
   .chat-input-row button{
     border-radius:50%;
-    background:var(--green);
+    background:#66C21A;
     color:#111111;
     display:flex;
     align-items:center;
