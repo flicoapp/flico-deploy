@@ -980,11 +980,16 @@
   .chat-avatar{
     width:36px;
     height:36px;
-    object-fit:contain;
-    padding:4px;
     border-radius:50%;
-    background:radial-gradient(circle, rgba(124,255,0,0.14), rgba(124,255,0,0) 70%);
+    background:radial-gradient(circle, rgba(124,255,0,0.14), rgba(124,255,0,0) 70%) center/contain no-repeat;
     filter:drop-shadow(0 0 8px rgba(124,255,0,0.35));
+    flex-shrink:0;
+    display:inline-block;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-user-drag:none;
+    -webkit-touch-callout:none;
+    touch-action:manipulation;
   }
   .chat-title{
     font-family:'Space Grotesk', sans-serif;
@@ -1899,7 +1904,8 @@
 
   <div class="email-section fade d6">
     <div class="email-heading">Get Notified at Launch</div>
-    <form class="email-form" id="notifyForm" action="https://formspree.io/f/meebwvpn" method="POST" onsubmit="return handleSubmit(event)">
+    <form class="email-form" id="notifyForm" action="https://formspree.io/f/meebwvpn" method="POST" onsubmit="return handleSubmit(event)" autocomplete="on">
+      <label for="notifyEmail" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Email address</label>
       <input type="email" id="notifyEmail" name="email" autocomplete="email" placeholder="Enter your email" required aria-label="Email address">
       <button type="submit">Notify Me</button>
     </form>
@@ -3570,11 +3576,24 @@ You receive recent conversation history with every request. Use it to resolve fo
 - Never contradict the provided facts.
 - Frame all features as "planned" since the app has not launched yet.
 
-HOMEPAGE SUGGESTED QUESTIONS — MANDATORY RICH ANSWERS:
-The product page shows four suggested-question shortcuts: "✨ What is FLICO?", "🚀 Features", "🤖 FLICO AI", and "💎 Pricing". Whenever the user's message matches one of these four (including close variations, typos, or the same question asked in Hindi/Hinglish — e.g. "FLICO kya hai?"), you MUST give the full, rich, detailed answer described below for that topic. Never shorten it into a generic one-liner, never say something generic like "FLICO is a video editing app, ask me more," and never skip straight to a filler response. These four topics have official, ready-made depth — always use it in full, written naturally in your own words (never as a rigid copy-paste), while keeping the premium, conversational tone.
+HOMEPAGE SUGGESTED QUESTIONS:
+The product page shows four shortcut buttons: "✨ What is FLICO?", "🚀 Features", "🤖 FLICO AI", and "💎 Pricing". When the user's message matches one of these (including close variations, typos, or Hindi/Hinglish equivalents like "FLICO kya hai?"), use the concise format described below. Keep all answers short, clear, and conversational — never write walls of text or long paragraphs.
 
 1) "What is FLICO?" (and equivalents like "Tell me about FLICO", "Explain FLICO", "FLICO kya hai?"):
-   Explain, conversationally, that FLICO is an upcoming AI-powered video editing platform built to help creators edit faster, smarter, and more professionally — combining powerful editing tools with intelligent AI features inside a modern, creator-focused interface. Mention it's designed for YouTube videos, Instagram Reels, Shorts, gaming edits, cinematic content, and social videos alike. Naturally weave in a handful of the planned highlights (multi-layer timeline, AI auto captions, AI background removal, motion tracking, professional effects & transitions, meme library, sound effects library, royalty-free music library, smart project management, high-quality export) — you don't have to list every single one every time, but give a genuine sense of the breadth. Close by noting FLICO is currently under development and features may evolve before official launch.
+   Write 1–2 sentences introducing FLICO, then show exactly 3–4 highlights in compact bullet format (feature name + one short line). End with "Want to know more about any feature?" Use this EXACT format:
+
+   ## What is FLICO? ✨
+
+   FLICO is an upcoming AI-powered video editing app for creators — fast, smart, and built for YouTube, Reels, Shorts, gaming edits, and more.
+
+   • AI Auto Captions — auto-generates accurate subtitles.
+   • Background Remover — removes video backgrounds using AI.
+   • Multi-Layer Timeline — edit video, audio, and text layers together.
+   • Motion Tracking — attaches text or effects to moving objects.
+
+   *Features are planned and may evolve before launch. Want to know more about any of these?*
+
+   Do NOT write long paragraphs. Do NOT list every feature. If the user asks for more detail, expand only what they asked about.
 
 2) "Features" / "What can FLICO do?" / "Best features" / "Why use FLICO?" / "🚀 Features" button:
    Show ONLY 3–4 standout features in the compact format. Do NOT list all features. Do NOT write a wall of text. Use this EXACT format:
@@ -3599,7 +3618,20 @@ The product page shows four suggested-question shortcuts: "✨ What is FLICO?", 
    Note that all features are planned and may evolve before launch.
 
 3) "FLICO AI" (and equivalents like "Tell me about FLICO AI", "Does FLICO have AI?", "AI features"):
-   Explain that FLICO AI is designed to make editing faster and smarter by cutting out repetitive work. Cover the planned capabilities conversationally: AI auto captions, AI background removal, motion tracking, AI editing suggestions, and smart creator assistance. Reinforce that AI is a creative co-pilot, never a replacement for the editor's decisions. Note these AI capabilities are planned and may evolve before launch.
+   Write 1 sentence intro, then show 3–4 AI features in compact bullet format (feature name + one short line). End with "Want to know more?" Use this EXACT format:
+
+   ## FLICO AI 🤖
+
+   FLICO AI is built to make editing faster and smarter — cutting out repetitive work so you can focus on creating.
+
+   • AI Auto Captions — auto-generates accurate subtitles.
+   • Background Remover — removes backgrounds using AI.
+   • Motion Tracking — tracks moving objects and attaches effects.
+   • AI Editing Suggestions — smart recommendations while you edit.
+
+   *These AI capabilities are planned and may evolve before launch. Want to know more?*
+
+   Do NOT write long paragraphs. Expand only if the user explicitly asks.
 
 4) "Pricing" (and equivalents like "Plans", "Cost", "Premium", "Is FLICO free?"):
    Explain that FLICO aims to offer both a Free and a Premium experience. The Free plan is perfect for beginners with essential editing tools. The Premium plan is built around advanced editing tools, premium assets, AI-powered features, and a professional creator experience. Always close by saying final pricing hasn't been officially announced yet, and complete pricing will be shared when FLICO launches.
@@ -3987,7 +4019,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     const chatClose = document.getElementById('chatClose');
     const chatAvatar = document.getElementById('chatAvatar');
 
-    if(chatAvatar && mascot){ chatAvatar.src = mascot.tagName === 'IMG' ? mascot.src : (mascot.dataset.src || ''); }
+    if(chatAvatar && mascot){
+      const _avatarSrc = mascot.tagName === 'IMG' ? mascot.src : (mascot.dataset.src || '');
+      if(_avatarSrc) chatAvatar.style.backgroundImage = 'url(' + _avatarSrc + ')';
+    }
 
     // Competitor/comparison prompts (FLICO vs CapCut, "roast other apps", etc.) were
     // removed from the proactive suggestion set. Comparisons are still fully supported
@@ -4023,6 +4058,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     let isTyping = false;
     let activeMsgId = 0;          // increments with every sendMessage call
     let activeStreamAbort = null; // fn that aborts the live fetch; null when idle
+    let activeTypedBox = null;    // the currently-running typewriter box; null when idle
 
     function getHistory(){
       try{
@@ -4230,6 +4266,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         close(){ flushCarry(); closed = true; kick(); },
         hasRevealedAnything(){ return wordsShown > 0 || queue.length > 0; },
         remove(){ wrap.remove(); },
+        // Immediately stops all typing, removes the bubble from DOM, and
+        // resolves the promise so no dangling .whenDone.then() hangs.
+        cancel(){
+          queue.length = 0; carry = ''; closed = true; looping = false;
+          doneResolve(''); // resolve once; Promise ignores subsequent calls
+          wrap.remove();
+        },
         // Resolves with the final text once every queued word has been shown.
         whenDone: donePromise
       };
@@ -4306,8 +4349,9 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       const trimmed = text.trim();
       if(!trimmed) return;
 
-      // Cancel any in-progress stream — the new message takes over immediately
+      // Cancel any in-progress stream and typewriter — new message takes over immediately
       if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
+      if(activeTypedBox){ activeTypedBox.cancel(); activeTypedBox = null; }
       const myId = ++activeMsgId;
       isTyping = false;
       removeTypingIndicator();
@@ -4340,16 +4384,19 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       }
 
       if(result.route === 'local'){
-        // Deterministic KB / conversational-fallback reply. Same "thinking"
-        // delay as before, then types itself out word-by-word instead of
-        // appearing all at once.
+        // Deterministic KB / conversational-fallback reply — types itself out
+        // word-by-word after a brief thinking pause. Guard: if the user sends
+        // another message during the delay, this callback is a no-op.
         const thinkDelay = 450 + Math.min(trimmed.length * 12, 700);
         setTimeout(()=>{
+          if(activeMsgId !== myId) return; // superseded — silently drop
           removeTypingIndicator();
           const box = createTypedBubble();
+          activeTypedBox = box;
           box.pushAll(result.text);
           box.close();
           box.whenDone.then((finalText)=>{
+            if(activeTypedBox === box) activeTypedBox = null;
             commitReply(finalText, result.intentId);
           });
         }, thinkDelay);
@@ -4367,7 +4414,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       let usedFallback = false;
 
       function ensureBox(){
-        if(!box){ removeTypingIndicator(); box = createTypedBubble(); }
+        if(!box){
+          removeTypingIndicator();
+          box = createTypedBubble();
+          activeTypedBox = box; // register so next sendMessage can cancel it
+        }
         return box;
       }
 
@@ -4399,7 +4450,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           if(usedFallback) return;
           if(box && box.hasRevealedAnything()){
             box.close();
-            box.whenDone.then((finalText)=> commitReply(finalText, result.intentId));
+            box.whenDone.then((finalText)=>{
+              if(activeTypedBox === box) activeTypedBox = null;
+              commitReply(finalText, result.intentId);
+            });
           } else {
             runFallback(new Error('api_returned_no_text'));
           }
@@ -4518,6 +4572,25 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     mascot.style.touchAction        = 'manipulation';
   })();
 
+  // Protect chat avatar from long-press image-save (same pattern as mascotFigure)
+  (function protectChatAvatar(){
+    const avatar = document.getElementById('chatAvatar');
+    if(!avatar) return;
+    avatar.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+    avatar.addEventListener('dragstart',   function(e){ e.preventDefault(); });
+    avatar.addEventListener('selectstart', function(e){ e.preventDefault(); });
+    let _avatarLpt = null;
+    avatar.addEventListener('touchstart', function(e){
+      _avatarLpt = setTimeout(function(){ e.preventDefault(); }, 300);
+    }, { passive: false });
+    avatar.addEventListener('touchend',  function(){ clearTimeout(_avatarLpt); });
+    avatar.addEventListener('touchmove', function(){ clearTimeout(_avatarLpt); });
+    avatar.style.webkitTouchCallout = 'none';
+    avatar.style.webkitUserSelect   = 'none';
+    avatar.style.userSelect         = 'none';
+    avatar.style.touchAction        = 'manipulation';
+  })();
+
   (function protectFlicoLogo(){
     const logo = document.getElementById('flicoLogo');
     if(!logo) return;
@@ -4604,7 +4677,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   </div>
   <div class="chat-header">
     <div class="chat-header-info">
-      <img src="" alt="" class="chat-avatar" id="chatAvatar">
+      <div class="chat-avatar" id="chatAvatar" role="img" aria-label="FLICO Assistant" draggable="false" oncontextmenu="return false"></div>
       <div>
         <div class="chat-title">FLICO Assistant</div>
         <div class="chat-status"><span class="status-dot"></span>Online</div>
