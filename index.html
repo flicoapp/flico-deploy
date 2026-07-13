@@ -2776,6 +2776,61 @@
       return (hindiCount / tokens.length) >= 0.3 ? 'hi' : 'en';
     }
 
+    // --- Broad multilingual detection (for languages beyond the local
+    //     English/Hindi/Hinglish engine) ---------------------------------
+    // The local INTENTS engine only understands English and Roman/Devanagari
+    // Hindi trigger phrases, so it is never a good match for other languages.
+    // This detector recognizes a much wider set of languages purely to (a)
+    // tag the message with an accurate language code for the system prompt,
+    // and (b) let getResponse() skip straight to Gemini instead of running
+    // those messages through the English/Hindi intent matcher, where an
+    // unrelated word could coincidentally fuzzy-match a short trigger.
+    // Indic-script languages get their own Unicode block; Japanese/Korean/
+    // Chinese/Arabic/Russian use their scripts; the remaining Latin-script
+    // languages (French, German, Spanish, Portuguese, Italian, Turkish) use
+    // a lightweight common-word/diacritic heuristic. Returns null when the
+    // text looks like plain English/Hindi/Hinglish — callers should fall
+    // back to detectLanguage() in that case, so existing behavior for
+    // English/Hindi/Hinglish is completely unchanged.
+    const SCRIPT_LANGUAGE_RANGES = [
+      { lang: 'bn', re: /[\u0980-\u09FF]/ },              // Bengali/Assamese share the block
+      { lang: 'gu', re: /[\u0A80-\u0AFF]/ },               // Gujarati
+      { lang: 'pa', re: /[\u0A00-\u0A7F]/ },               // Punjabi (Gurmukhi)
+      { lang: 'ta', re: /[\u0B80-\u0BFF]/ },               // Tamil
+      { lang: 'te', re: /[\u0C00-\u0C7F]/ },               // Telugu
+      { lang: 'kn', re: /[\u0C80-\u0CFF]/ },               // Kannada
+      { lang: 'ml', re: /[\u0D00-\u0D7F]/ },               // Malayalam
+      { lang: 'or', re: /[\u0B00-\u0B7F]/ },               // Odia
+      { lang: 'ur', re: /[\u0600-\u06FF\u0750-\u077F]/ },  // Urdu / Arabic script
+      { lang: 'ja', re: /[\u3040-\u30FF\uFF66-\uFF9F]/ },  // Hiragana/Katakana
+      { lang: 'zh', re: /[\u4E00-\u9FFF]/ },                // CJK (matches Chinese; Japanese Kanji-only text is rare without Kana)
+      { lang: 'ko', re: /[\uAC00-\uD7AF]/ },                // Hangul
+      { lang: 'ru', re: /[\u0400-\u04FF]/ },                // Cyrillic (Russian)
+    ];
+
+    // Distinctive common words for Latin-script languages that would
+    // otherwise be indistinguishable from English by script alone.
+    const LATIN_LANGUAGE_WORDS = {
+      fr: ['bonjour','merci','oui','non','comment','pourquoi','vous','s\'il','svp','ça','va','salut','je','suis','c\'est'],
+      es: ['hola','gracias','por','favor','como','estas','qué','cómo','buenos','días','sí','señor','señora','muy','bien'],
+      pt: ['olá','obrigado','obrigada','como','está','você','por','favor','sim','não','bom','dia','tudo','bem'],
+      de: ['hallo','danke','bitte','wie','geht','ihnen','warum','guten','tag','morgen','ja','nein','ich','bin'],
+      it: ['ciao','grazie','prego','come','stai','perché','buongiorno','sì','sono','bene'],
+      tr: ['merhaba','teşekkür','lütfen','nasılsın','neden','evet','hayır','iyi','günler'],
+    };
+
+    function detectBroadLanguage(rawText){
+      for(const { lang, re } of SCRIPT_LANGUAGE_RANGES){
+        if(re.test(rawText)) return lang;
+      }
+      const words = rawText.toLowerCase().replace(/[^\p{L}\s']/gu, ' ').split(/\s+/).filter(Boolean);
+      if(words.length === 0) return null;
+      for(const [lang, list] of Object.entries(LATIN_LANGUAGE_WORDS)){
+        if(words.some(w => list.includes(w))) return lang;
+      }
+      return null; // looks like English/Hindi/Hinglish — use detectLanguage()
+    }
+
     // --- Intents: each has trigger phrases (fuzzy-matched) and a `respond(ctx, lang)`
     //     returning an array of natural-language variants in the requested language.
     //     Factual intents have one variant per language (accuracy over variety);
@@ -3698,10 +3753,14 @@ QUESTION HANDLING:
 - "Can I join the waitlist?" / "How do I sign up?" → Use waitlist field.
 - "Will FLICO receive updates?" / "Will more features be added?" → Use updatesPolicy.
 
-══ LANGUAGE ══
-- Understand English, Hindi, Hinglish, mixed scripts, and common typos ("Flico", "Filco", "Flicoo").
-- Always reply in the same language the user wrote in. Never switch languages unnecessarily.
-- English input → English reply. Hindi input → Hindi reply. Hinglish input → Hinglish reply.
+══ LANGUAGE — MULTILINGUAL SUPPORT ══
+- Automatically detect the language of every user message and reply in that same language. Never force English if the user is speaking another language, and never say "I only support English."
+- Understand and respond naturally in (at minimum): English, Hindi, Hinglish, Bengali, Marathi, Gujarati, Punjabi, Tamil, Telugu, Kannada, Malayalam, Odia, Assamese, Urdu, Nepali, French, German, Spanish, Portuguese, Italian, Japanese, Korean, Chinese, Arabic, Russian, and Turkish. Also understand mixed scripts and common typos ("Flico", "Filco", "Flicoo").
+- If the user mixes two languages in one message (e.g. Hindi + English), reply naturally in that same mixed style — do not force a single "pure" language.
+- Maintain the same language throughout the conversation unless the user switches. If the user switches language mid-conversation, switch with them immediately on your next reply.
+- Preserve all formatting, markdown, headings, bullet points, and emojis in every language — the FLICO brand voice, personality, and creator-friendly tone stay consistent no matter which language you're replying in.
+- If the user explicitly asks for a translation, translate accurately while preserving the original meaning and formatting.
+- Hindi specifically is always written in Roman script (Hinglish-style), never Devanagari, even if the user writes in Devanagari — this matches how FLICO's Hindi-speaking users read most comfortably. All other languages should be written in their own natural/native script.
 
 ══ RESPONSE STYLE ══
 - Keep responses short and easy to read by default. Give detailed explanations ONLY when the user explicitly asks.
@@ -3990,6 +4049,19 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       // never reach the intent engine or Gemini.
       if(isPureReaction(rawText.trim())){
         return { text: getReactionReply(rawText.trim(), lang), intentId: 'pure-reaction', lang, route:'local' };
+      }
+
+      // ── Broad multilingual short-circuit ──────────────────────────────────
+      // The INTENTS engine below only speaks English/Hindi/Hinglish. For any
+      // other supported language (Bengali, Tamil, Japanese, Spanish, …) skip
+      // it entirely and hand off straight to Gemini with the detected language
+      // code, so the system prompt's multilingual instructions can reply
+      // naturally in that language. This never touches the existing
+      // English/Hindi/Hinglish path — detectBroadLanguage() returns null for
+      // those, and control falls through to the unchanged logic below.
+      const broadLang = detectBroadLanguage(rawText);
+      if(broadLang){
+        return { text: OUT_OF_SCOPE, intentId: null, lang: broadLang, route:'gemini' };
       }
 
       // Devanagari-script words are mapped to their Roman equivalents before tokenizing,
