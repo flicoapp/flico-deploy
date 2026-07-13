@@ -1506,13 +1506,22 @@
     -webkit-backdrop-filter:none;
     box-shadow:none;
   }
-  /* Per-message avatar glyph removed (was an emoji); bubbles align to the
-     panel edge directly for a cleaner, denser conversation column. */
-  .chat-msg-avatar{ display:none; }
-  .chat-msg-row{ align-items:flex-start; }
-  .chat-msg-wrap.bot .chat-time{ margin-left:2px; }
+  /* Assistant profile picture — the FLICO mascot image, flat and minimal
+     (no glow/gradient), shown beside every assistant message and in the
+     typing indicator so the assistant's identity stays consistent. */
+  .chat-msg-avatar{
+    display:flex;
+    background-color:#171917;
+    background-image:none;
+    background-size:cover;
+    background-position:center;
+    border:1px solid rgba(124,255,0,0.25);
+    box-shadow:none;
+  }
+  .chat-msg-row{ align-items:flex-end; }
+  .chat-msg-wrap.bot .chat-time{ margin-left:36px; }
 
-  /* Typing indicator — label + dots only, no avatar glyph */
+  /* Typing indicator — assistant avatar + label + dots */
   .chat-typing{
     display:flex;
     align-items:center;
@@ -1521,7 +1530,10 @@
     color:var(--white-45);
     font-size:12.5px;
   }
-  .chat-typing .chat-msg-avatar{ display:none; }
+  .chat-typing .chat-msg-avatar{
+    width:22px;
+    height:22px;
+  }
 
   /* Composer — flat rounded pill, no blur; balanced after removing
      the attachment hint (input now spans the full available width) */
@@ -4352,9 +4364,21 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     const chatClose = document.getElementById('chatClose');
     const chatAvatar = document.getElementById('chatAvatar');
 
-    if(chatAvatar && mascot){
-      const _avatarSrc = mascot.tagName === 'IMG' ? mascot.src : (mascot.dataset.src || '');
-      if(_avatarSrc) chatAvatar.style.backgroundImage = 'url(' + _avatarSrc + ')';
+    // The FLICO Assistant's profile picture -- reused for the header avatar,
+    // every per-message avatar, and the typing indicator, so the assistant's
+    // identity stays consistent throughout the chat. Sourced from the same
+    // mascot image already on the page (no emoji, no text placeholder).
+    const ASSISTANT_AVATAR_SRC = mascot ? (mascot.tagName === 'IMG' ? mascot.src : (mascot.dataset.src || '')) : '';
+
+    if(chatAvatar && ASSISTANT_AVATAR_SRC){
+      chatAvatar.style.backgroundImage = 'url(' + ASSISTANT_AVATAR_SRC + ')';
+    }
+
+    function applyAssistantAvatar(el){
+      if(!el) return;
+      if(ASSISTANT_AVATAR_SRC){
+        el.style.backgroundImage = 'url(' + ASSISTANT_AVATAR_SRC + ')';
+      }
     }
 
     // Competitor/comparison prompts (FLICO vs CapCut, "roast other apps", etc.) were
@@ -4474,6 +4498,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         const av = document.createElement('div');
         av.className = 'chat-msg-avatar';
         av.setAttribute('aria-hidden', 'true');
+        applyAssistantAvatar(av);
         row.appendChild(av);
       }
       row.appendChild(bubble);
@@ -4513,6 +4538,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       const av = document.createElement('div');
       av.className = 'chat-msg-avatar';
       av.setAttribute('aria-hidden', 'true');
+      applyAssistantAvatar(av);
 
       const bubble = document.createElement('div');
       bubble.className = 'chat-msg bot';
@@ -4719,9 +4745,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       typing.className = 'chat-typing';
       typing.id = 'chatTypingIndicator';
       typing.innerHTML =
+        '<span class="chat-msg-avatar" aria-hidden="true"></span>' +
         '<span>FLICO Assistant is thinking</span>' +
         '<span class="chat-typing-dots"><span></span><span></span><span></span></span>';
       chatMessages.appendChild(typing);
+      applyAssistantAvatar(typing.querySelector('.chat-msg-avatar'));
       // Instant snap — user just pressed Send; must be immediate, not animated.
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
