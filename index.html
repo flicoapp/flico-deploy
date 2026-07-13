@@ -1213,6 +1213,17 @@
     30%{ transform:translateY(-4px); opacity:1; }
   }
 
+  /* Interrupted / frozen bot bubble */
+  .chat-msg-wrap.is-interrupted .chat-msg.bot{
+    border-color:rgba(255,255,255,0.05);
+    opacity:0.82;
+  }
+  .chat-msg-wrap.is-interrupted .chat-time::after{
+    content:' · stopped';
+    font-style:italic;
+    opacity:0.55;
+  }
+
   .chat-suggestions{
     display:none;
   }
@@ -1284,13 +1295,21 @@
     box-shadow:0 4px 14px rgba(124,255,0,0.28);
     transition:box-shadow .25s ease, transform .2s ease;
   }
-  .chat-input-row button svg, .chat-input-row button{ transition:transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s ease; }
+  .chat-input-row button{ transition:transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s ease; }
+  .chat-input-row button svg{ transition:transform .22s cubic-bezier(.34,1.56,.64,1); pointer-events:none; }
   .chat-input-row button:hover{
     box-shadow:0 0 20px rgba(124,255,0,0.55);
     transform:translateY(-2px) scale(1.05);
   }
+  .chat-input-row button:hover svg{
+    transform:translate(2px,-2px) rotate(-5deg);
+  }
   .chat-input-row button:active{
     transform:translateY(0) scale(0.94);
+  }
+  .chat-input-row button:active svg{
+    transform:translate(3px,-3px) scale(0.92);
+    transition-duration:.08s;
   }
 
   @media (max-width:480px){
@@ -4278,6 +4297,17 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           doneResolve(''); // resolve once; Promise ignores subsequent calls
           wrap.remove();
         },
+        // Halts typing and keeps the partial response visible in the chat.
+        // Used when the user sends a new message mid-stream — the already-
+        // typed text stays as a frozen bubble marked as "stopped", so the
+        // conversation history is never lost.
+        freeze(){
+          queue.length = 0; carry = ''; closed = true; looping = false;
+          wrap.classList.add('is-interrupted');
+          // Set timestamp now; the next step()/RAF may set it again — harmless.
+          if(!stamp.textContent) stamp.textContent = formatTime();
+          doneResolve(bubble.textContent); // resolve so no .whenDone.then() hangs
+        },
         // Resolves with the final text once every queued word has been shown.
         whenDone: donePromise
       };
@@ -4354,9 +4384,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       const trimmed = text.trim();
       if(!trimmed) return;
 
-      // Cancel any in-progress stream and typewriter — new message takes over immediately
+      // Interrupt any in-progress stream: abort the fetch so no more chunks
+      // arrive, then freeze the active typewriter bubble so the already-typed
+      // partial response stays visible instead of disappearing.
       if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
-      if(activeTypedBox){ activeTypedBox.cancel(); activeTypedBox = null; }
+      if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
       const myId = ++activeMsgId;
       isTyping = false;
       removeTypingIndicator();
@@ -4700,8 +4732,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   <form class="chat-input-row" id="chatForm">
     <input type="text" id="chatInput" placeholder="Ask me anything about FLICO..." autocomplete="off" aria-label="Type your question">
     <button type="submit" aria-label="Send message">
-      <svg width="17" height="17" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-        <path d="M3 8.5h11M10 4l4.5 4.5L10 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <!-- Paper airplane — Feather/Heroicons style send icon -->
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
   </form>
