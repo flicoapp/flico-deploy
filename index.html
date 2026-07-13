@@ -1420,6 +1420,144 @@
   }
 
   /* ==========================================================
+     FLICO Assistant — Chat UI refresh (flat, smooth, minimal)
+     Override-only block: no IDs/classes changed, nothing else on
+     the page touched. Drops glassmorphism/blur/heavy glow in
+     favor of a lightweight flat surface. Brand green is reserved
+     for the send button, user bubble, accents and focus states.
+     ========================================================== */
+
+  /* Decorative animated backdrop inside the panel — pure visual
+     noise, no functional purpose. Hidden for a calmer, lighter feel. */
+  .chat-panel-bg{ display:none; }
+
+  .chat-panel{
+    background:#101210;
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:20px;
+    box-shadow:0 20px 48px rgba(0,0,0,0.4);
+  }
+  .chat-panel::before{ display:none; }
+
+  .chat-header{
+    position:sticky;
+    top:0;
+    background:#101210;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+    padding:16px 18px;
+  }
+  .chat-avatar{
+    background:rgba(124,255,0,0.10);
+    border:1px solid rgba(124,255,0,0.30);
+    filter:none;
+  }
+  .chat-title{
+    background:none;
+    -webkit-text-fill-color:currentColor;
+    color:var(--white);
+    font-size:15px;
+  }
+  .chat-status{ color:var(--white-45); font-size:11.5px; }
+  .chat-status .status-dot{ box-shadow:none; animation:none; }
+  .chat-header-actions button{
+    background:rgba(255,255,255,0.06);
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+    border:1px solid rgba(255,255,255,0.08);
+  }
+
+  /* Welcome screen — brand wordmark instead of an emoji glyph */
+  .chat-welcome-logo{
+    filter:none;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:800;
+    font-size:30px;
+    letter-spacing:-0.01em;
+    color:var(--green);
+  }
+
+  /* Suggestion cards — flat, equal height, light hover only */
+  .chat-card{
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+    background:#161816;
+    border:1px solid rgba(255,255,255,0.08);
+    box-shadow:none;
+    transition:border-color .2s ease, transform .2s ease, background .2s ease;
+  }
+  .chat-card:hover, .chat-card:focus-visible{
+    background:#181b18;
+    border-color:rgba(124,255,0,0.4);
+    transform:translateY(-2px);
+    box-shadow:none;
+  }
+  .chat-card:active{ transform:translateY(0) scale(0.98); transition-duration:.1s; }
+  .chat-card-icon{ filter:none; color:var(--green); line-height:1; }
+  .chat-card-icon svg{ width:18px; height:18px; display:block; }
+
+  /* Bubbles — flat surfaces, accent via border rather than glow */
+  .chat-msg.user{ background:var(--green); box-shadow:none; }
+  .chat-msg.bot{
+    background:#171917;
+    border:1px solid rgba(124,255,0,0.16);
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+    box-shadow:none;
+  }
+  /* Per-message avatar glyph removed (was an emoji); bubbles align to the
+     panel edge directly for a cleaner, denser conversation column. */
+  .chat-msg-avatar{ display:none; }
+  .chat-msg-row{ align-items:flex-start; }
+  .chat-msg-wrap.bot .chat-time{ margin-left:2px; }
+
+  /* Typing indicator — label + dots only, no avatar glyph */
+  .chat-typing{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:2px 2px;
+    color:var(--white-45);
+    font-size:12.5px;
+  }
+  .chat-typing .chat-msg-avatar{ display:none; }
+
+  /* Composer — flat rounded pill, no blur; balanced after removing
+     the attachment hint (input now spans the full available width) */
+  .chat-input-row{
+    background:#101210;
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+    border-top:1px solid rgba(255,255,255,0.08);
+    gap:10px;
+  }
+  .chat-attach-hint{ display:none; }
+  .chat-input-row textarea{
+    border-radius:22px;
+    background:#181a18;
+    border:1px solid rgba(255,255,255,0.08);
+  }
+  .chat-input-row textarea:focus{
+    border-color:rgba(124,255,0,0.5);
+    background:#181a18;
+    box-shadow:0 0 0 3px rgba(124,255,0,0.12);
+  }
+  .chat-input-row button{ box-shadow:none; }
+  .chat-input-row button:hover{ box-shadow:none; }
+  .chat-input-row button:disabled{
+    opacity:0.35;
+    cursor:not-allowed;
+    box-shadow:none;
+    transform:none;
+  }
+  .chat-input-row button:disabled:hover{ transform:none; box-shadow:none; }
+
+  @media (prefers-reduced-motion:reduce){
+    .chat-card, .chat-input-row textarea, .chat-input-row button{ transition:none; }
+  }
+
+  /* ==========================================================
      Assistant Lock / Unlock System
      ========================================================== */
 
@@ -4241,20 +4379,29 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     // Premium glass "starting screen" categories -- each opens the chat
     // straight into a representative question. Kept FLICO-focused only;
     // no competitor/comparison cards (see SUGGESTIONS note above).
+    // Lightweight inline SVG icons (Feather/Heroicons-style paths) --
+    // replaces the previous emoji glyphs; no icon library dependency.
+    const CARD_ICONS = {
+      features: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+      premium:  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12l3 6-9 12L3 9l3-6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+      start:    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      ask:      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 17v.01M9.5 9a2.5 2.5 0 1 1 3.5 2.29c-.76.35-1 1-1 1.71" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>'
+    };
+
     const WELCOME_CARDS = [
-      { icon:"🎬", title:"Explore Features",  sub:"See what FLICO can do for you",     q:"What are FLICO features?" },
-      { icon:"💎", title:"Premium Tools",      sub:"Plans and premium perks",           q:"Pricing" },
-      { icon:"🚀", title:"Getting Started",    sub:"A quick intro to FLICO",            q:"What is FLICO?" },
-      { icon:"❓", title:"Ask Anything",       sub:"Or type your own question below",   q:"Tell me something interesting about FLICO" }
+      { icon:CARD_ICONS.features, title:"Explore Features",  sub:"See what FLICO can do for you",     q:"What are FLICO features?" },
+      { icon:CARD_ICONS.premium,  title:"Premium Tools",      sub:"Plans and premium perks",           q:"Pricing" },
+      { icon:CARD_ICONS.start,    title:"Getting Started",    sub:"A quick intro to FLICO",            q:"What is FLICO?" },
+      { icon:CARD_ICONS.ask,      title:"Ask Anything",       sub:"Or type your own question below",   q:"Tell me something interesting about FLICO" }
     ];
 
     // Rotating input placeholders -- cycles while the field is empty and
     // unfocused, purely cosmetic (never overwrites typed text).
     const INPUT_PLACEHOLDERS = [
-      "💬 Ask about FLICO...",
-      "🎬 Need editing help?",
-      "🚀 Discover creator tools...",
-      "🤖 Ask FLICO Assistant..."
+      "Ask about FLICO...",
+      "Need editing help?",
+      "Discover creator tools...",
+      "Ask FLICO Assistant..."
     ];
 
     const HISTORY_KEY = 'flico_chat_history';
@@ -4327,7 +4474,6 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         const av = document.createElement('div');
         av.className = 'chat-msg-avatar';
         av.setAttribute('aria-hidden', 'true');
-        av.textContent = '🤖';
         row.appendChild(av);
       }
       row.appendChild(bubble);
@@ -4367,7 +4513,6 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       const av = document.createElement('div');
       av.className = 'chat-msg-avatar';
       av.setAttribute('aria-hidden', 'true');
-      av.textContent = '🤖';
 
       const bubble = document.createElement('div');
       bubble.className = 'chat-msg bot';
@@ -4524,8 +4669,8 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       if(chatMessages.querySelector('.chat-welcome')) return;
       const welcome = document.createElement('div');
       welcome.className = 'chat-welcome';
-      welcome.innerHTML = "<span class=\"chat-welcome-logo\" aria-hidden=\"true\">🤖</span>" +
-        "<strong>👋 Welcome to FLICO Assistant</strong>" +
+      welcome.innerHTML = "<span class=\"chat-welcome-logo\" aria-hidden=\"true\">FLICO</span>" +
+        "<strong>Welcome to FLICO Assistant</strong>" +
         "Your creator-friendly AI companion for everything about FLICO.";
       chatMessages.appendChild(welcome);
       renderWelcomeCards();
@@ -4574,7 +4719,6 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       typing.className = 'chat-typing';
       typing.id = 'chatTypingIndicator';
       typing.innerHTML =
-        '<span class="chat-msg-avatar" aria-hidden="true">🤖</span>' +
         '<span>FLICO Assistant is thinking</span>' +
         '<span class="chat-typing-dots"><span></span><span></span><span></span></span>';
       chatMessages.appendChild(typing);
@@ -4812,6 +4956,20 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
     // Send button ripple — short-lived expanding ring centered on the click.
     const chatSendBtn = chatForm ? chatForm.querySelector('button[type="submit"]') : null;
+
+    // Disable the send button whenever the composer is empty -- purely a UI
+    // affordance, does not touch sendMessage/streaming/chat logic at all.
+    if(chatSendBtn && chatInput){
+      const syncSendButtonState = function(){
+        chatSendBtn.disabled = chatInput.value.trim().length === 0;
+      };
+      syncSendButtonState();
+      chatInput.addEventListener('input', syncSendButtonState);
+      chatForm.addEventListener('submit', function(){
+        setTimeout(syncSendButtonState, 0);
+      });
+    }
+
     if(chatSendBtn){
       chatSendBtn.addEventListener('click', function(e){
         const rect = chatSendBtn.getBoundingClientRect();
@@ -4968,8 +5126,8 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     <div class="chat-header-info">
       <div class="chat-avatar" id="chatAvatar" role="img" aria-label="FLICO Assistant" draggable="false" oncontextmenu="return false"></div>
       <div>
-        <div class="chat-title">🤖 FLICO Assistant</div>
-        <div class="chat-status"><span class="status-dot"></span>Online · Creator-Friendly AI</div>
+        <div class="chat-title">FLICO Assistant</div>
+        <div class="chat-status"><span class="status-dot"></span>Official FLICO Assistant</div>
       </div>
     </div>
     <div class="chat-header-actions">
@@ -4982,8 +5140,8 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   <div class="chat-suggestions" id="chatSuggestions"></div>
 
   <form class="chat-input-row" id="chatForm">
-    <span class="chat-attach-hint" aria-hidden="true">📎</span>
-    <textarea id="chatInput" rows="1" placeholder="💬 Ask about FLICO..." autocomplete="off" aria-label="Type your question"></textarea>
+    <span class="chat-attach-hint" aria-hidden="true"></span>
+    <textarea id="chatInput" rows="1" placeholder="Ask about FLICO..." autocomplete="off" aria-label="Type your question"></textarea>
     <button type="submit" aria-label="Send message">
       <!-- Paper airplane — Feather/Heroicons style send icon -->
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
