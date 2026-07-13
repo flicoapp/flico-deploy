@@ -2226,6 +2226,117 @@
     .chat-header-actions button,
     .social-icons a{ animation:none !important; transition:none !important; }
   }
+
+  /* ==========================================================
+     FLICO Assistant — pass 3 (bugfix pass, no design changes)
+     Header avatar, typing indicator, markdown spacing, user-bubble
+     glow, and backdrop-icon polish. Override-only: no IDs/classes/
+     JS hooks removed, no layout system replaced.
+     ========================================================== */
+
+  /* 1) Header avatar — the flat-redesign pass reset the "background"
+     shorthand (color+border), which also reset background-size/position/
+     repeat to their defaults and left the real photo mis-scaled/tiled
+     behind the accent tint, reading as an empty green circle. Re-declare
+     the image sizing explicitly and drop the leftover glow/gradient so
+     the real avatar shows, centered and flat like every other avatar. */
+  .chat-avatar{
+    background-color:#171917;
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    border:1px solid rgba(124,255,0,0.28);
+    box-shadow:none;
+    filter:none;
+  }
+  .chat-header-info{ gap:12px; }
+
+  /* 2) Typing indicator — restore an actual bubble (the flat pass had
+     stripped its background/border down to bare inline text, which is
+     what let it stretch edge-to-edge instead of wrapping like a message).
+     Label sits above the dots inside that bubble, both capped to the
+     same max-width as a bot message so long content wraps instead of
+     overflowing the panel. */
+  .chat-typing{
+    align-items:center;
+    max-width:75%;
+    box-sizing:border-box;
+    padding:11px 14px;
+    background:#171917;
+    border:1px solid rgba(124,255,0,0.16);
+    border-radius:16px;
+    border-bottom-left-radius:5px;
+  }
+  .chat-typing-body{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:6px;
+    min-width:0;
+  }
+  .chat-typing-label{
+    color:var(--white-70);
+    overflow-wrap:anywhere;
+  }
+  .chat-typing .chat-typing-dots{ gap:4px; }
+
+  /* 3) Markdown spacing — give every rendered block (heading, paragraph,
+     list) the same vertical rhythm via margin-top on all but the first,
+     instead of relying only on a heading's margin-bottom. That was what
+     let a heading and the paragraph right after it read as one run-on
+     block. Also styles the ordered-list / italic markup added above. */
+  .chat-msg.bot p,
+  .chat-msg.bot ul,
+  .chat-msg.bot ol,
+  .chat-msg.bot .md-h{ margin:0; }
+  .chat-msg.bot > *:not(:first-child){ margin-top:11px; }
+  .chat-msg.bot .md-h{
+    display:block;
+    font-weight:700;
+    font-size:13.5px;
+    line-height:1.4;
+    color:var(--white);
+  }
+  .chat-msg.bot ul,
+  .chat-msg.bot ol{ padding-left:19px; }
+  .chat-msg.bot ol{ list-style:decimal; }
+  .chat-msg.bot li{ margin-bottom:5px; line-height:1.55; }
+  .chat-msg.bot li:last-child{ margin-bottom:0; }
+  .chat-msg.bot li > ul,
+  .chat-msg.bot li > ol{ margin-top:5px; }
+  .chat-msg.bot em{ font-style:italic; color:var(--white-92); }
+
+  /* 4) User bubble — flat solid FLICO green (no gradient) with the outer
+     glow cut by roughly 80% (0.26 alpha / 14px blur down to ~0.05 / a
+     tighter radius) and a very soft neutral shadow for depth instead. */
+  .chat-msg.user{
+    background:var(--green);
+    box-shadow:0 2px 6px rgba(124,255,0,0.05), 0 1px 4px rgba(0,0,0,0.16);
+  }
+
+  /* 5) Editing-tool backdrop — quieter and slightly smaller so it never
+     competes with the conversation, plus an explicit stacking order so
+     it always paints behind the header and message list regardless of
+     their own position/z-index. */
+  .chat-panel-bg{ z-index:0; }
+  .chat-header{ position:relative; z-index:2; }
+  .chat-messages{ position:relative; z-index:1; }
+  .chat-panel-bg .bg-grid,
+  .bg-panel, .bg-frame, .bg-timeline, .bg-crop, .bg-trim, .bg-fx{
+    opacity:0.025;
+  }
+  .bg-grid{ width:150px; height:150px; }
+  .bg-panel{ width:120px; height:120px; }
+  .bg-frame{ width:135px; height:135px; }
+  .bg-timeline{ width:120px; height:120px; }
+  .bg-crop{ width:90px; height:90px; }
+  .bg-trim{ width:105px; height:105px; }
+  .bg-fx{ width:115px; height:115px; }
+
+  /* 6) General spacing polish — slightly roomier bubble padding and line
+     height for legibility, a touch more breathing room above timestamps. */
+  .chat-msg{ padding:12px 15px; line-height:1.6; }
+  .chat-time{ margin-top:6px; }
 </style>
 </head>
 <body>
@@ -4618,13 +4729,18 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     }
 
     function inlineMarkdown(line){
-      return line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      // Order matters: consume **bold** pairs first so the leftover single
+      // asterisks can only mean italics (avoids **x** being read as *,*x*,*).
+      return line
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/(^|[^\w])_(.+?)_(?!\w)/g, '$1<em>$2</em>');
     }
 
     function formatMarkdown(raw){
       const lines = escapeHtml(String(raw)).split(/\n/);
       let html = '';
-      let listOpen = false;
+      let listType = null; // 'ul' | 'ol' | null -- tracks the open list, if any
       let paraLines = [];
 
       function flushPara(){
@@ -4634,12 +4750,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         }
       }
       function closeList(){
-        if(listOpen){ html += '</ul>'; listOpen = false; }
+        if(listType){ html += '</' + listType + '>'; listType = null; }
       }
 
       lines.forEach(line=>{
         const trimmed = line.trim();
-        const bullet = /^([-*•])\s+(.*)$/.exec(trimmed);
+        const bullet  = /^[-*•]\s+(.*)$/.exec(trimmed);
+        const ordered = /^\d+[.)]\s+(.*)$/.exec(trimmed);
         const heading = /^#{1,3}\s+(.*)$/.exec(trimmed);
 
         if(!trimmed){
@@ -4655,8 +4772,14 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         }
         if(bullet){
           flushPara();
-          if(!listOpen){ html += '<ul>'; listOpen = true; }
-          html += '<li>' + inlineMarkdown(bullet[2]) + '</li>';
+          if(listType !== 'ul'){ closeList(); html += '<ul>'; listType = 'ul'; }
+          html += '<li>' + inlineMarkdown(bullet[1]) + '</li>';
+          return;
+        }
+        if(ordered){
+          flushPara();
+          if(listType !== 'ol'){ closeList(); html += '<ol>'; listType = 'ol'; }
+          html += '<li>' + inlineMarkdown(ordered[1]) + '</li>';
           return;
         }
         closeList();
@@ -4987,8 +5110,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       typing.id = 'chatTypingIndicator';
       typing.innerHTML =
         '<span class="chat-msg-avatar" aria-hidden="true"></span>' +
-        '<span>FLICO Assistant is thinking</span>' +
-        '<span class="chat-typing-dots"><span></span><span></span><span></span></span>';
+        '<span class="chat-typing-body">' +
+          '<span class="chat-typing-label">FLICO Assistant is thinking</span>' +
+          '<span class="chat-typing-dots"><span></span><span></span><span></span></span>' +
+        '</span>';
       chatMessages.appendChild(typing);
       applyAssistantAvatar(typing.querySelector('.chat-msg-avatar'));
       // Instant snap — user just pressed Send; must be immediate, not animated.
