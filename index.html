@@ -1570,6 +1570,144 @@
   }
 
   /* ==========================================================
+     FLICO Assistant — mockup-aligned pass 2
+     Subtle creator-tool backdrop, message max-widths, markdown
+     rendering, date separator, avatar grouping, unified pill
+     composer. Still override-only: no IDs/classes/JS hooks changed.
+     ========================================================== */
+
+  /* Very low-opacity, static, monochrome-green editing-tool motifs
+     behind the chat surface. Opacity is the only "blur" effect used
+     (per spec: no backdrop-filter / no CSS filter blur). Static --
+     no animation, no distraction, meant to be noticed only on a
+     close look. Reuses the existing decorative wrapper + 7 child
+     elements already in the markup (no HTML changes). */
+  .chat-panel-bg{
+    display:block;
+    position:absolute;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+    overflow:hidden;
+    opacity:1;
+    background:none;
+  }
+  .chat-panel-bg::before,
+  .chat-panel-bg::after{ display:none; content:none; }
+  .chat-panel-bg .bg-grid,
+  .bg-panel, .bg-frame, .bg-timeline, .bg-crop, .bg-trim, .bg-fx{
+    position:absolute;
+    background-repeat:no-repeat;
+    background-position:center;
+    background-size:contain;
+    animation:none;
+    box-shadow:none;
+    border:none;
+    background-color:transparent;
+    opacity:0.045;
+  }
+  .chat-panel-bg .bg-grid{
+    top:-6%; left:-10%;
+    width:190px; height:190px;
+    transform:rotate(-6deg);
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20stroke%3D'%237CFF00'%20stroke-width%3D'1.4'%20fill%3D'none'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Crect%20x%3D%224%22%20y%3D%2210%22%20width%3D%2256%22%20height%3D%228%22%20rx%3D%222%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2228%22%20width%3D%2236%22%20height%3D%228%22%20rx%3D%222%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%2246%22%20width%3D%2248%22%20height%3D%228%22%20rx%3D%222%22%2F%3E%3C%2Fsvg%3E");
+  }
+  .bg-panel{
+    top:8%; right:-8%;
+    width:150px; height:150px;
+    transform:rotate(4deg);
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20stroke%3D'%237CFF00'%20stroke-width%3D'1.4'%20fill%3D'none'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2227%22%2F%3E%3Cpath%20d%3D%22M26%2022%20L45%2032%20L26%2042%20Z%22%2F%3E%3C%2Fsvg%3E");
+  }
+  .bg-frame{
+    top:38%; right:-10%;
+    width:170px; height:170px;
+    transform:rotate(-3deg);
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20stroke%3D'%237CFF00'%20stroke-width%3D'1.4'%20fill%3D'none'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Crect%20x%3D%227%22%20y%3D%2213%22%20width%3D%2250%22%20height%3D%2238%22%20rx%3D%225%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%227%22%2F%3E%3C%2Fsvg%3E");
+  }
+  .bg-timeline{
+    bottom:14%; left:-8%;
+    width:150px; height:150px;
+    transform:rotate(8deg);
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20stroke%3D'%237CFF00'%20stroke-width%3D'1.4'%20fill%3D'none'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2247%22%20r%3D%227%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2217%22%20r%3D%227%22%2F%3E%3Cpath%20d%3D%22M23%2021%20L55%2053%20M23%2043%20L55%2011%22%2F%3E%3C%2Fsvg%3E");
+  }
+  .bg-timeline span{ display:none; }
+  .bg-crop{
+    top:20%; left:4%;
+    width:110px; height:110px;
+    transform:rotate(-4deg);
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20stroke%3D'%237CFF00'%20stroke-width%3D'1.4'%20fill%3D'none'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D%22M5%2021%20V5%20H21%20M43%205%20H59%20V21%20M59%2043%20V59%20H43%20M21%2059%20H5%20V43%22%2F%3E%3C%2Fsvg%3E");
+  }
+  .bg-trim{
+    bottom:6%; right:8%;
+    width:130px; height:130px;
+    transform:rotate(5deg);
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20stroke%3D'%237CFF00'%20stroke-width%3D'1.4'%20fill%3D'none'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D%22M8%2032%20V32%20M17%2022%20V42%20M26%2012%20V52%20M35%2026%20V38%20M44%208%20V56%20M53%2022%20V42%22%2F%3E%3C%2Fsvg%3E");
+  }
+  .bg-fx{
+    top:60%; left:38%;
+    width:140px; height:140px;
+    transform:rotate(-8deg);
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20stroke%3D'%237CFF00'%20stroke-width%3D'1.4'%20fill%3D'none'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2223%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%229%22%2F%3E%3Cpath%20d%3D%22M32%203%20V13%20M32%2051%20V61%20M3%2032%20H13%20M51%2032%20H61%22%2F%3E%3C%2Fsvg%3E");
+  }
+
+  /* Message max-widths per spec: assistant 75%, user 70% */
+  .chat-msg-wrap.bot{ max-width:75%; }
+  .chat-msg-wrap.user{ max-width:70%; }
+  .chat-msg.bot{ max-width:100%; }
+  .chat-msg.user{ max-width:100%; }
+
+  /* Markdown rendering inside assistant bubbles (bold, bullet lists,
+     headings, paragraphs). Rendered from escaped, hand-parsed markdown
+     -- no external library, no extra request. */
+  .chat-msg.bot{ white-space:normal; }
+  .chat-msg.bot p{ margin:0 0 8px; }
+  .chat-msg.bot p:last-child{ margin-bottom:0; }
+  .chat-msg.bot ul{ margin:2px 0 8px; padding-left:18px; }
+  .chat-msg.bot ul:last-child{ margin-bottom:0; }
+  .chat-msg.bot li{ margin-bottom:4px; }
+  .chat-msg.bot li:last-child{ margin-bottom:0; }
+  .chat-msg.bot strong{ color:var(--white); font-weight:700; }
+  .chat-msg.bot .md-h{ display:block; font-weight:700; font-size:13.5px; margin:0 0 6px; color:var(--white); }
+
+  /* "Today" date separator */
+  .chat-date-sep{
+    align-self:center;
+    color:var(--white-45);
+    font-size:11px;
+    padding:2px 0 4px;
+  }
+
+  /* Avatar grouping: only the first bubble in a consecutive run of
+     assistant messages shows the profile picture; later ones in the
+     same run indent to the same column instead of repeating it. */
+  .chat-msg-row.is-grouped{ padding-left:36px; }
+
+  /* Composer as a single unified pill (matches the approved mockup)
+     instead of a separate pill-input + floating button. */
+  .chat-input-row{
+    border-top:none;
+    margin:0 14px calc(10px + env(safe-area-inset-bottom,0px));
+    padding:6px 6px 6px 16px;
+    border-radius:26px;
+    border:1px solid rgba(255,255,255,0.10);
+    background:#151714;
+  }
+  .chat-input-row textarea{
+    border:none;
+    background:transparent;
+    padding:9px 0;
+    border-radius:0;
+  }
+  .chat-input-row textarea:focus{
+    border:none;
+    background:transparent;
+    box-shadow:none;
+  }
+  .chat-input-row:focus-within{
+    border-color:rgba(124,255,0,0.45);
+  }
+
+  /* ==========================================================
      Assistant Lock / Unlock System
      ========================================================== */
 
@@ -4462,6 +4600,91 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       return new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
     }
 
+    // ==========================================================
+    // Lightweight markdown renderer for assistant replies
+    // ----------------------------------------------------------
+    // Supports just what the assistant's replies actually use: bold
+    // (**text**), "## " headings, "- "/"* "/"• " bullet lists, and
+    // paragraph breaks on blank lines. HTML-escapes the raw text first
+    // so no reply (KB or Gemini-sourced) can inject markup. Deliberately
+    // not a full markdown spec — kept tiny and dependency-free.
+    // ==========================================================
+    function escapeHtml(str){
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function inlineMarkdown(line){
+      return line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }
+
+    function formatMarkdown(raw){
+      const lines = escapeHtml(String(raw)).split(/\n/);
+      let html = '';
+      let listOpen = false;
+      let paraLines = [];
+
+      function flushPara(){
+        if(paraLines.length){
+          html += '<p>' + paraLines.join('<br>') + '</p>';
+          paraLines = [];
+        }
+      }
+      function closeList(){
+        if(listOpen){ html += '</ul>'; listOpen = false; }
+      }
+
+      lines.forEach(line=>{
+        const trimmed = line.trim();
+        const bullet = /^([-*•])\s+(.*)$/.exec(trimmed);
+        const heading = /^#{1,3}\s+(.*)$/.exec(trimmed);
+
+        if(!trimmed){
+          flushPara();
+          closeList();
+          return;
+        }
+        if(heading){
+          flushPara();
+          closeList();
+          html += '<span class="md-h">' + inlineMarkdown(heading[1]) + '</span>';
+          return;
+        }
+        if(bullet){
+          flushPara();
+          if(!listOpen){ html += '<ul>'; listOpen = true; }
+          html += '<li>' + inlineMarkdown(bullet[2]) + '</li>';
+          return;
+        }
+        closeList();
+        paraLines.push(inlineMarkdown(trimmed));
+      });
+      flushPara();
+      closeList();
+      return html || escapeHtml(String(raw));
+    }
+
+    // True when the most recently rendered chat item is an assistant
+    // bubble, so a new assistant reply can skip repeating the avatar and
+    // group visually under the previous one instead.
+    function lastRenderedRole(){
+      const items = chatMessages.querySelectorAll('.chat-msg-wrap');
+      if(!items.length) return null;
+      const last = items[items.length - 1];
+      return last.classList.contains('bot') ? 'bot' : 'user';
+    }
+
+    function ensureDateSeparator(){
+      if(chatMessages.querySelector('.chat-date-sep')) return;
+      const sep = document.createElement('div');
+      sep.className = 'chat-date-sep';
+      sep.textContent = 'Today';
+      chatMessages.appendChild(sep);
+    }
+
     // One RAF handle shared across all typewriter scroll requests.
     // Coalesces all per-word scroll calls into a single paint frame.
     let _scrollRaf = 0;
@@ -4491,15 +4714,24 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
       const bubble = document.createElement('div');
       bubble.className = 'chat-msg ' + (role === 'user' ? 'user' : 'bot');
-      bubble.textContent = text;
+      if(role === 'user'){
+        bubble.textContent = text;
+      } else {
+        bubble.innerHTML = formatMarkdown(text);
+      }
       if(!animate) bubble.style.animation = 'none';
 
       if(role !== 'user'){
-        const av = document.createElement('div');
-        av.className = 'chat-msg-avatar';
-        av.setAttribute('aria-hidden', 'true');
-        applyAssistantAvatar(av);
-        row.appendChild(av);
+        const grouped = lastRenderedRole() === 'bot';
+        if(grouped){
+          row.classList.add('is-grouped');
+        } else {
+          const av = document.createElement('div');
+          av.className = 'chat-msg-avatar';
+          av.setAttribute('aria-hidden', 'true');
+          applyAssistantAvatar(av);
+          row.appendChild(av);
+        }
       }
       row.appendChild(bubble);
 
@@ -4535,10 +4767,16 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       const row = document.createElement('div');
       row.className = 'chat-msg-row';
 
-      const av = document.createElement('div');
-      av.className = 'chat-msg-avatar';
-      av.setAttribute('aria-hidden', 'true');
-      applyAssistantAvatar(av);
+      const grouped = lastRenderedRole() === 'bot';
+      if(grouped){
+        row.classList.add('is-grouped');
+      } else {
+        const av = document.createElement('div');
+        av.className = 'chat-msg-avatar';
+        av.setAttribute('aria-hidden', 'true');
+        applyAssistantAvatar(av);
+        row.appendChild(av);
+      }
 
       const bubble = document.createElement('div');
       bubble.className = 'chat-msg bot';
@@ -4548,7 +4786,6 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       stamp.className = 'chat-time';
       stamp.textContent = '';
 
-      row.appendChild(av);
       row.appendChild(bubble);
       wrap.appendChild(row);
       wrap.appendChild(stamp);
@@ -4627,9 +4864,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
             // Stamp and final scroll run in a RAF so they land in the same
             // paint frame rather than causing an extra layout pass.
             requestAnimationFrame(function(){
+              const finalRaw = bubble.textContent;
+              bubble.innerHTML = formatMarkdown(finalRaw);
               stamp.textContent = formatTime();
               scrollToBottom(true);
-              doneResolve(bubble.textContent);
+              doneResolve(finalRaw);
             });
           }
           return;
@@ -4677,9 +4916,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         freeze(){
           queue.length = 0; carry = ''; closed = true; looping = false;
           wrap.classList.add('is-interrupted');
+          const finalRaw = bubble.textContent;
+          bubble.innerHTML = formatMarkdown(finalRaw);
           // Set timestamp now; the next step()/RAF may set it again — harmless.
           if(!stamp.textContent) stamp.textContent = formatTime();
-          doneResolve(bubble.textContent); // resolve so no .whenDone.then() hangs
+          doneResolve(finalRaw); // resolve so no .whenDone.then() hangs
         },
         // Resolves with the final text once every queued word has been shown.
         whenDone: donePromise
@@ -4773,6 +5014,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       removeTypingIndicator();
 
       hideSuggestions();
+      ensureDateSeparator();
       const time = formatTime();
       renderMessage('user', trimmed, time, true);
 
@@ -4937,6 +5179,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     (function restoreHistory(){
       const history = getHistory();
       if(history.length > 0){
+        ensureDateSeparator();
         history.forEach(m => renderMessage(m.role, m.text, m.time, false));
       }
     })();
@@ -5155,7 +5398,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       <div class="chat-avatar" id="chatAvatar" role="img" aria-label="FLICO Assistant" draggable="false" oncontextmenu="return false"></div>
       <div>
         <div class="chat-title">FLICO Assistant</div>
-        <div class="chat-status"><span class="status-dot"></span>Official FLICO Assistant</div>
+        <div class="chat-status"><span class="status-dot"></span>Online</div>
       </div>
     </div>
     <div class="chat-header-actions">
