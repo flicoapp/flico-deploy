@@ -456,6 +456,10 @@
     cursor:pointer;
     transform:scale(1);
     transition:transform .3s cubic-bezier(.16,.8,.24,1), filter .3s ease;
+    -webkit-user-drag:none;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-touch-callout:none;
   }
 
   .mascot-figure:hover{
@@ -4282,6 +4286,34 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   // FLICO Logo Protection — applies only to #flicoLogo.
   // No other element on the page is affected.
   // ==========================================================
+  // Prevent long-press "Download image" context menu on the chatbot mascot
+  (function protectMascotIcon(){
+    const mascot = document.getElementById('mascotFigure');
+    if(!mascot) return;
+
+    // Block right-click / long-press context menu on the mascot only
+    mascot.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+
+    // Block drag so the image cannot be dragged out
+    mascot.addEventListener('dragstart', function(e){ e.preventDefault(); });
+
+    // Block selection gestures
+    mascot.addEventListener('selectstart', function(e){ e.preventDefault(); });
+
+    // Suppress the native long-press callout on Android Chrome / iOS Safari
+    let _lpt = null;
+    mascot.addEventListener('touchstart', function(e){
+      _lpt = setTimeout(function(){ e.preventDefault(); }, 300);
+    }, { passive: false });
+    mascot.addEventListener('touchend',  function(){ clearTimeout(_lpt); });
+    mascot.addEventListener('touchmove', function(){ clearTimeout(_lpt); });
+
+    // Belt-and-suspenders via inline style (covers older WebKit)
+    mascot.style.webkitTouchCallout = 'none';
+    mascot.style.webkitUserSelect   = 'none';
+    mascot.style.userSelect         = 'none';
+  })();
+
   (function protectFlicoLogo(){
     const logo = document.getElementById('flicoLogo');
     if(!logo) return;
@@ -4328,6 +4360,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       role="button"
       tabindex="0"
       aria-label="FLICO mascot — say hi"
+      draggable="false"
     >
     <!-- Lock overlay — hidden once assistant is unlocked -->
     <div class="mascot-lock-overlay" id="mascotLockOverlay">
