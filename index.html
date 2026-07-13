@@ -2339,32 +2339,73 @@
   .chat-time{ margin-top:6px; }
 
   /* ==========================================================
-     FLICO Assistant — Exact Reference Match Pass
-     Scoped strictly to the open chat panel, matching the approved
-     reference screenshot: full-strength brand green with its glow,
-     a two-line "Hi, I'm your FLICO Assistant." welcome heading with
-     underline accent, a green-outlined input pill, and a true
-     circular send button with a centered white icon. No layout,
-     spacing, icons, mascot, or background artwork touched -- only
-     this panel's colors, glow and the welcome heading markup.
+     FLICO Assistant — Premium Calm Pass
+     Scoped strictly to the open chat panel via a local --green
+     override (site-wide branding, mascot, and icons outside the
+     panel are untouched). Trades the neon/high-glow look for a
+     flatter, lower-saturation premium finish: calmer brand green,
+     regular-weight assistant text, a real three-dot typing bubble,
+     a black icon on the send button, and softer bubble shadows.
+     No layout, structure, or components changed anywhere.
      ========================================================== */
+  .chat-panel{
+    /* Slightly lower saturation/brightness than the site's neon
+       --green, used only for chat bubbles, the send button, accent
+       icons and borders inside this panel. */
+    --green:#78E61A;
+  }
 
   /* Surfaces + borders aligned to the exact brand tokens */
   .chat-header{ background:#141414; border-bottom-color:#242424; }
   .chat-card{ background:#141414; border-color:#242424; }
   .chat-card:hover, .chat-card:focus-visible{ background:#181818; }
-  .chat-msg.bot{ background:#141414; border-color:#242424; }
   .chat-status,
   .chat-card-sub,
   .chat-time{ color:#A1A1A1; }
 
-  /* Brand-green glow restored to match the reference exactly */
-  .chat-avatar{ box-shadow:0 0 12px rgba(124,255,0,0.4); }
+  /* Brand-green glow dialed way down -- flat, premium, comfortable
+     for long conversations instead of the neon halo look. */
+  .chat-avatar{ box-shadow:0 0 5px rgba(120,230,26,0.22); }
   .chat-status .status-dot{
-    box-shadow:0 0 6px rgba(124,255,0,0.8);
+    box-shadow:0 0 4px rgba(120,230,26,0.45);
     animation:statusPulse 2s ease-in-out infinite;
   }
-  .chat-card-icon{ filter:drop-shadow(0 0 5px rgba(124,255,0,0.35)); }
+  .chat-card-icon{ filter:none; }
+
+  /* Assistant bubble -- lighter surface, clearer border, regular-
+     weight body text set like ChatGPT: no bold, generous line
+     height, a touch of tracking, comfortable paragraph spacing. */
+  .chat-msg.bot{
+    background:#181818;
+    border-color:#2A2A2A;
+    padding:13px 16px;
+  }
+  .chat-msg.bot,
+  .chat-msg.bot p,
+  .chat-msg.bot li{
+    font-weight:400;
+    line-height:1.6;
+    letter-spacing:0.01em;
+  }
+  .chat-msg.bot > *:not(:first-child){ margin-top:13px; }
+  .chat-msg.bot strong{ font-weight:600; }
+  .chat-msg.bot .md-h{ font-weight:600; }
+
+  /* User bubble -- softer flat green, no glow, gentle neutral shadow. */
+  .chat-msg.user{
+    background:var(--green);
+    box-shadow:0 2px 8px rgba(0,0,0,0.20);
+  }
+
+  /* Typing indicator -- soft gray dots only (no label text, no
+     spinner), inside the same bubble shell as an assistant message.
+     Disappears automatically once a reply starts streaming in via
+     the existing removeTypingIndicator() calls. */
+  .chat-typing{ padding:13px 16px; }
+  .chat-typing span{
+    background:#A1A1A1;
+    opacity:0.6;
+  }
 
   /* Welcome heading -- "Hi, I'm your / FLICO Assistant." + underline,
      matching the reference layout exactly. */
@@ -2404,23 +2445,30 @@
     margin:0;
   }
 
-  /* Input pill -- resting green outline + soft ambient glow, matching
-     the reference (previously only appeared on focus). */
+  /* Input pill -- subtle resting green outline, no ambient glow. */
   .chat-input-row{
-    border-color:rgba(124,255,0,0.4);
-    box-shadow:0 0 18px rgba(124,255,0,0.08);
+    border-color:rgba(120,230,26,0.30);
+    box-shadow:none;
+  }
+  .chat-input-row textarea:focus{
+    border-color:rgba(120,230,26,0.4);
+    background:rgba(120,230,26,0.03);
+    box-shadow:0 0 0 3px rgba(120,230,26,0.08);
   }
 
-  /* Send button -- true circle, perfectly centered white icon, full
-     brand-green glow restored to match the reference. */
+  /* Send button -- true circle, perfectly centered black icon on the
+     flat green fill (stronger contrast than white, reads premium),
+     equal padding, smooth press animation, no heavy glow. */
   .chat-input-row button{
     border-radius:50%;
-    color:#FFFFFF;
+    background:var(--green);
+    color:#111111;
     display:flex;
     align-items:center;
     justify-content:center;
     padding:0;
-    box-shadow:0 0 16px rgba(124,255,0,0.45), 0 3px 8px rgba(0,0,0,0.3);
+    box-shadow:0 2px 6px rgba(0,0,0,0.22);
+    transition:transform 0.18s var(--ease-spring), box-shadow 0.18s ease, opacity 0.2s ease;
   }
   .chat-input-row button svg{
     display:block;
@@ -2428,12 +2476,15 @@
     flex-shrink:0;
   }
   .chat-input-row button:hover{
-    box-shadow:0 0 22px rgba(124,255,0,0.6), 0 4px 12px rgba(0,0,0,0.32);
+    transform:translateY(-1px);
+    box-shadow:0 3px 10px rgba(0,0,0,0.26);
   }
   .chat-input-row button:active{
-    box-shadow:0 0 10px rgba(124,255,0,0.35);
+    transform:scale(0.92);
+    box-shadow:0 1px 4px rgba(0,0,0,0.2);
+    transition-duration:0.08s;
   }
-  .chat-input-row button:disabled{ box-shadow:none; }
+  .chat-input-row button:disabled{ box-shadow:none; transform:none; }
 </style>
 </head>
 <body>
@@ -5206,10 +5257,39 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
     function showTyping(){
       isTyping = true;
-      // Visual "thinking" bubble (label + dots) intentionally removed per
-      // design update -- the chat stays clean while a response loads. The
-      // isTyping flag and scroll behavior are preserved so nothing else in
-      // the send/stream flow changes.
+      // Modern typing indicator: three soft dots inside the same bubble
+      // shell as an assistant message -- no "FLICO is thinking..." label,
+      // no spinner. removeTypingIndicator() (called the instant a reply
+      // starts streaming/typing in) takes it back out.
+      if(!document.getElementById('chatTypingIndicator')){
+        const wrap = document.createElement('div');
+        wrap.className = 'chat-msg-wrap bot';
+        wrap.id = 'chatTypingIndicator';
+
+        const row = document.createElement('div');
+        row.className = 'chat-msg-row';
+
+        const grouped = lastRenderedRole() === 'bot';
+        if(grouped){
+          row.classList.add('is-grouped');
+        } else {
+          const av = document.createElement('div');
+          av.className = 'chat-msg-avatar';
+          av.setAttribute('aria-hidden', 'true');
+          applyAssistantAvatar(av);
+          row.appendChild(av);
+        }
+
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-typing';
+        bubble.setAttribute('role', 'status');
+        bubble.setAttribute('aria-label', 'FLICO Assistant is typing');
+        bubble.innerHTML = '<span class="chat-typing-dots"><span></span><span></span><span></span></span>';
+
+        row.appendChild(bubble);
+        wrap.appendChild(row);
+        chatMessages.appendChild(wrap);
+      }
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
