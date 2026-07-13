@@ -1417,6 +1417,7 @@
     .chat-panel, .chat-backdrop{ transition:none; }
     .chat-msg{ animation:none; }
     .chat-typing span{ animation:none; }
+    .chat-signature-line{ animation:none; }
   }
 
   /* ==========================================================
@@ -2405,6 +2406,39 @@
   .chat-typing span{
     background:#A1A1A1;
     opacity:0.6;
+  }
+
+  /* ── FLICO Signature Loading Animation ─────────────────────────────
+     Replaces the dot-based typing indicator with a single animated
+     rounded line -- a distinct FLICO brand interaction, not dots, not
+     a spinner, not a progress bar. Lives inside the same small bubble
+     shell as a normal assistant message so the loading state feels
+     natural. Crossfades out (120ms) the moment a reply starts
+     streaming/typing in, via removeTypingIndicator(). */
+  .chat-typing{
+    background:#171717;
+    border:1px solid #242424;
+    border-radius:20px;
+    padding:12px 18px;
+    transition:opacity 0.12s ease;
+  }
+  .chat-typing.chat-typing-fade-out{
+    opacity:0;
+    pointer-events:none;
+  }
+  .chat-signature-line{
+    display:block;
+    width:36px;
+    height:4px;
+    border-radius:9999px;
+    background:#7ED321;
+    box-shadow:0 0 6px rgba(126,211,33,0.18);
+    animation:flicoSignatureLine 1050ms ease-in-out infinite;
+  }
+  @keyframes flicoSignatureLine{
+    0%{   transform:translateX(-5px) scale(0.95); opacity:0.7; }
+    50%{  transform:translateX(5px)  scale(1);    opacity:1;   }
+    100%{ transform:translateX(-5px) scale(0.95); opacity:0.7; }
   }
 
   /* Welcome heading -- "Hi, I'm your / FLICO Assistant." + underline,
@@ -5284,7 +5318,9 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         bubble.className = 'chat-typing';
         bubble.setAttribute('role', 'status');
         bubble.setAttribute('aria-label', 'FLICO Assistant is typing');
-        bubble.innerHTML = '<span class="chat-typing-dots"><span></span><span></span><span></span></span>';
+        // FLICO signature loading animation: a single rounded line,
+        // not dots -- see .chat-signature-line for the motion spec.
+        bubble.innerHTML = '<span class="chat-signature-line" aria-hidden="true"></span>';
 
         row.appendChild(bubble);
         wrap.appendChild(row);
@@ -5295,7 +5331,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
     function removeTypingIndicator(){
       const el = document.getElementById('chatTypingIndicator');
-      if(el) el.remove();
+      if(!el) return;
+      // Free the id immediately so a fresh indicator/response can appear
+      // right away, then crossfade this one out over 120ms (matching the
+      // assistant reply's own fade-in) instead of popping it off instantly.
+      el.removeAttribute('id');
+      el.classList.add('chat-typing-fade-out');
+      setTimeout(()=>{ if(el.parentNode) el.remove(); }, 120);
     }
 
     function sendMessage(text){
