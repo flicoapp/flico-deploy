@@ -2339,44 +2339,80 @@
   .chat-time{ margin-top:6px; }
 
   /* ==========================================================
-     FLICO Assistant — Premium Refinement Pass
-     Scoped strictly to the open chat panel (matches the approved
-     reference screenshot exactly). Softens the brand green a touch,
-     swaps remaining neon glow for subtle neutral shadows, aligns
-     surfaces/borders/secondary text to the exact brand tokens, and
-     restores a true circular send button with a perfectly centered
-     white icon. No layout, structure, spacing, icons, mascot, or
-     background artwork touched anywhere -- colors and shadows only,
-     and only inside this panel. The rest of the site is unaffected.
+     FLICO Assistant — Exact Reference Match Pass
+     Scoped strictly to the open chat panel, matching the approved
+     reference screenshot: full-strength brand green with its glow,
+     a two-line "Hi, I'm your FLICO Assistant." welcome heading with
+     underline accent, a green-outlined input pill, and a true
+     circular send button with a centered white icon. No layout,
+     spacing, icons, mascot, or background artwork touched -- only
+     this panel's colors, glow and the welcome heading markup.
      ========================================================== */
-  .chat-panel{
-    /* Same hue as brand green #84F62F, slightly lower brightness/
-       saturation for a calmer, more premium feel. Scoped as a custom
-       property so every var(--green) usage inside the panel picks it
-       up automatically without touching each rule individually. */
-    --green:#7DE82C;
-    border-color:#242424;
-  }
 
   /* Surfaces + borders aligned to the exact brand tokens */
   .chat-header{ background:#141414; border-bottom-color:#242424; }
-  .chat-input-row{ background:#141414; border-color:#242424; }
   .chat-card{ background:#141414; border-color:#242424; }
-  .chat-card:hover, .chat-card:focus-visible{ background:#181818; border-color:rgba(125,232,44,0.4); }
+  .chat-card:hover, .chat-card:focus-visible{ background:#181818; }
   .chat-msg.bot{ background:#141414; border-color:#242424; }
   .chat-status,
   .chat-card-sub,
-  .chat-time,
-  .chat-welcome{ color:#A1A1A1; }
+  .chat-time{ color:#A1A1A1; }
 
-  /* Softer, more balanced shadows -- brand glow dialed down, not gone */
-  .chat-msg.user{ box-shadow:0 2px 6px rgba(0,0,0,0.25); }
-  .chat-card:hover, .chat-card:focus-visible{ box-shadow:0 6px 16px rgba(0,0,0,0.30); }
-  .chat-input-row textarea:focus{ box-shadow:0 0 0 3px rgba(125,232,44,0.10); }
-  .chat-chip:hover{ box-shadow:0 2px 8px rgba(125,232,44,0.10); }
+  /* Brand-green glow restored to match the reference exactly */
+  .chat-avatar{ box-shadow:0 0 12px rgba(124,255,0,0.4); }
+  .chat-status .status-dot{
+    box-shadow:0 0 6px rgba(124,255,0,0.8);
+    animation:statusPulse 2s ease-in-out infinite;
+  }
+  .chat-card-icon{ filter:drop-shadow(0 0 5px rgba(124,255,0,0.35)); }
 
-  /* Send button -- true circle, perfectly centered white icon, subtle
-     press feedback only (no neon hover glow). */
+  /* Welcome heading -- "Hi, I'm your / FLICO Assistant." + underline,
+     matching the reference layout exactly. */
+  .chat-welcome{ padding:10px 6px 14px; }
+  .chat-welcome-heading{
+    font-family:'Space Grotesk', sans-serif;
+    text-align:center;
+    line-height:1.3;
+    margin-bottom:14px;
+  }
+  .chat-welcome-line1{
+    display:block;
+    font-size:20px;
+    font-weight:500;
+    color:rgba(255,255,255,0.75);
+  }
+  .chat-welcome-line2{
+    display:block;
+    font-size:26px;
+    font-weight:700;
+    color:var(--white);
+  }
+  .chat-welcome-brand{ color:var(--green); }
+  .chat-welcome-divider{
+    width:28px;
+    height:3px;
+    margin:14px auto;
+    background:var(--green);
+    border-radius:2px;
+    box-shadow:0 0 8px rgba(124,255,0,0.55);
+  }
+  .chat-welcome-sub{
+    text-align:center;
+    font-size:13.5px;
+    line-height:1.6;
+    color:#A1A1A1;
+    margin:0;
+  }
+
+  /* Input pill -- resting green outline + soft ambient glow, matching
+     the reference (previously only appeared on focus). */
+  .chat-input-row{
+    border-color:rgba(124,255,0,0.4);
+    box-shadow:0 0 18px rgba(124,255,0,0.08);
+  }
+
+  /* Send button -- true circle, perfectly centered white icon, full
+     brand-green glow restored to match the reference. */
   .chat-input-row button{
     border-radius:50%;
     color:#FFFFFF;
@@ -2384,7 +2420,7 @@
     align-items:center;
     justify-content:center;
     padding:0;
-    box-shadow:0 2px 6px rgba(0,0,0,0.30);
+    box-shadow:0 0 16px rgba(124,255,0,0.45), 0 3px 8px rgba(0,0,0,0.3);
   }
   .chat-input-row button svg{
     display:block;
@@ -2392,10 +2428,10 @@
     flex-shrink:0;
   }
   .chat-input-row button:hover{
-    box-shadow:0 3px 10px rgba(0,0,0,0.35);
+    box-shadow:0 0 22px rgba(124,255,0,0.6), 0 4px 12px rgba(0,0,0,0.32);
   }
   .chat-input-row button:active{
-    box-shadow:0 1px 4px rgba(0,0,0,0.25);
+    box-shadow:0 0 10px rgba(124,255,0,0.35);
   }
   .chat-input-row button:disabled{ box-shadow:none; }
 </style>
@@ -5120,9 +5156,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       if(chatMessages.querySelector('.chat-welcome')) return;
       const welcome = document.createElement('div');
       welcome.className = 'chat-welcome';
-      welcome.innerHTML = "<span class=\"chat-welcome-logo\" aria-hidden=\"true\">FLICO</span>" +
-        "<strong>Welcome to FLICO Assistant</strong>" +
-        "Your creator-friendly AI companion for everything about FLICO.";
+      welcome.innerHTML =
+        '<div class="chat-welcome-heading">' +
+          '<span class="chat-welcome-line1">Hi, I\'m your</span>' +
+          '<span class="chat-welcome-line2"><span class="chat-welcome-brand">FLICO</span> Assistant.</span>' +
+        '</div>' +
+        '<div class="chat-welcome-divider" aria-hidden="true"></div>' +
+        '<p class="chat-welcome-sub">Ask me anything about FLICO or explore what I can do.</p>';
       chatMessages.appendChild(welcome);
       renderWelcomeCards();
     }
