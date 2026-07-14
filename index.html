@@ -692,222 +692,35 @@
   .chat-backdrop{
     position:fixed;
     inset:0;
-    background:rgba(0,0,0,0.45);
-    backdrop-filter:blur(2px);
+    background:rgba(0,0,0,0.55);
     z-index:59;
     opacity:0;
     pointer-events:none;
-    transition:opacity .35s ease;
+    transition:opacity .22s ease;
   }
   .chat-backdrop.is-open{
     opacity:1;
     pointer-events:auto;
   }
 
-  /* Subtle, slow-drifting video-editing motifs (timeline ticks, play glyphs,
-     waveform bars, keyframe dots, editing panels, crop marks) painted behind
-     the chat surface. Pure CSS so there is no extra asset weight; opacity
-     stays low so text contrast is untouched. */
-  @keyframes flicoBgDrift{
-    0%{ background-position:0 0, 0 0, 0 0; }
-    100%{ background-position:220px 0, -180px 140px, 0 -260px; }
-  }
+  /* Minimal, static backdrop for the chat surface — a plain two-tone tint,
+     no animation, no filters, no extra layers. Performance-first: this
+     replaces the previous drifting-motif system so the panel paints once
+     and never repaints on its own. */
   .chat-panel-bg{
     position:absolute;
     inset:0;
     z-index:0;
     pointer-events:none;
-    overflow:hidden;
-    opacity:0.6;
     background:
-      radial-gradient(120% 90% at 12% -10%, rgba(124,255,0,0.10), transparent 55%),
-      radial-gradient(90% 70% at 108% 118%, rgba(124,255,0,0.07), transparent 55%);
+      radial-gradient(120% 90% at 12% -10%, rgba(124,255,0,0.06), transparent 55%),
+      radial-gradient(90% 70% at 108% 118%, rgba(124,255,0,0.04), transparent 55%);
   }
-  .chat-panel-bg::before,
-  .chat-panel-bg::after{
-    content:'';
-    position:absolute;
-    opacity:0.5;
-  }
-  .chat-panel-bg .bg-grid{
-    position:absolute;
-    inset:0;
-    background-image:
-      radial-gradient(circle at 8px 8px, rgba(124,255,0,0.16) 1.4px, transparent 1.6px),
-      repeating-linear-gradient(90deg, rgba(124,255,0,0.06) 0 2px, transparent 2px 26px),
-      repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 34px);
-    background-size:34px 34px, 130px 100%, 100% 34px;
-    animation:flicoBgDrift 34s linear infinite;
-    mask-image:linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.3) 70%, transparent);
-    -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.3) 70%, transparent);
-  }
-  /* A lone "play" triangle drifting across the header area */
-  .chat-panel-bg::before{
-    top:14%;
-    left:-10%;
-    width:0; height:0;
-    border-style:solid;
-    border-width:7px 0 7px 11px;
-    border-color:transparent transparent transparent rgba(124,255,0,0.22);
-    animation:flicoPlayDrift 22s ease-in-out infinite;
-  }
-  /* A soft waveform made of gradient bars */
-  .chat-panel-bg::after{
-    bottom:8%;
-    right:-6%;
-    width:120px;
-    height:22px;
-    background:repeating-linear-gradient(90deg,
-      rgba(124,255,0,0.20) 0 3px,
-      transparent 3px 9px);
-    -webkit-mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
-    mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
-    animation:flicoWaveDrift 18s ease-in-out infinite;
-  }
-  /* Editing-panel outline, ghosted in the upper-right corner */
-  .bg-panel{
-    position:absolute;
-    top:6%;
-    right:6%;
-    width:96px;
-    height:64px;
-    border:1px solid rgba(124,255,0,0.16);
-    border-radius:10px;
-    background:linear-gradient(160deg, rgba(124,255,0,0.05), transparent 60%);
-    animation:flicoPanelFloat 26s ease-in-out infinite;
-  }
-  .bg-panel::before{
-    content:'';
-    position:absolute;
-    top:10px;
-    left:10px;
-    right:10px;
-    height:2px;
-    background:rgba(124,255,0,0.18);
-    border-radius:2px;
-    box-shadow:0 10px 0 rgba(255,255,255,0.06), 0 20px 0 rgba(124,255,0,0.12);
-  }
-  /* A miniature video frame with an inner play glyph */
-  .bg-frame{
-    position:absolute;
-    top:36%;
-    right:14%;
-    width:46px;
-    height:30px;
-    border:1.4px solid rgba(255,255,255,0.14);
-    border-radius:6px;
-    animation:flicoFrameFloat 20s ease-in-out infinite;
-  }
-  .bg-frame::before{
-    content:'';
-    position:absolute;
-    top:50%;
-    left:50%;
-    width:0; height:0;
-    transform:translate(-50%,-50%);
-    border-style:solid;
-    border-width:5px 0 5px 8px;
-    border-color:transparent transparent transparent rgba(124,255,0,0.35);
-  }
-  /* Timeline strip -- stacked clip layers, like a mini NLE track view */
-  .bg-timeline{
-    position:absolute;
-    left:8%;
-    bottom:20%;
-    width:130px;
-    display:flex;
-    flex-direction:column;
-    gap:5px;
-    animation:flicoTimelineDrift 30s ease-in-out infinite;
-  }
-  .bg-timeline span{
-    display:block;
-    height:5px;
-    border-radius:3px;
-    background:linear-gradient(90deg, rgba(124,255,0,0.28), rgba(124,255,0,0.05));
-  }
-  .bg-timeline span:nth-child(1){ width:70%; }
-  .bg-timeline span:nth-child(2){ width:100%; background:linear-gradient(90deg, rgba(255,255,255,0.14), rgba(255,255,255,0.02)); }
-  .bg-timeline span:nth-child(3){ width:45%; }
-  /* Crop corner marks, echoing the mascot crop motif at smaller scale */
-  .bg-crop{
-    position:absolute;
-    top:8%;
-    left:10%;
-    width:26px;
-    height:26px;
-    opacity:0.4;
-    animation:flicoCropPulse 5s ease-in-out infinite;
-  }
-  .bg-crop::before,
-  .bg-crop::after{
-    content:'';
-    position:absolute;
-    width:9px;
-    height:9px;
-    border-color:rgba(124,255,0,0.5);
-  }
-  .bg-crop::before{ top:0; left:0; border-top:1.4px solid; border-left:1.4px solid; }
-  .bg-crop::after{ bottom:0; right:0; border-bottom:1.4px solid; border-right:1.4px solid; }
-  /* Trim / split marker -- two bars meeting at a blade point */
-  .bg-trim{
-    position:absolute;
-    bottom:10%;
-    left:20%;
-    width:2px;
-    height:34px;
-    background:linear-gradient(180deg, transparent, rgba(124,255,0,0.3), transparent);
-    animation:flicoTrimBlink 7s ease-in-out infinite;
-  }
-  /* Effects sparkle -- soft ring pulsing like an applied filter */
-  .bg-fx{
-    position:absolute;
-    top:58%;
-    left:6%;
-    width:16px;
-    height:16px;
-    border-radius:50%;
-    border:1.2px solid rgba(124,255,0,0.3);
-    animation:flicoFxPulse 4.5s ease-in-out infinite;
-  }
-  @keyframes flicoPlayDrift{
-    0%,100%{ transform:translate(0,0) rotate(0deg); opacity:0.35; }
-    50%{ transform:translate(60px,18px) rotate(8deg); opacity:0.6; }
-  }
-  @keyframes flicoWaveDrift{
-    0%,100%{ transform:translateY(0); opacity:0.4; }
-    50%{ transform:translateY(-10px); opacity:0.7; }
-  }
-  @keyframes flicoPanelFloat{
-    0%,100%{ transform:translate(0,0); opacity:0.5; }
-    50%{ transform:translate(-8px,10px); opacity:0.75; }
-  }
-  @keyframes flicoFrameFloat{
-    0%,100%{ transform:translateY(0) rotate(0deg); opacity:0.4; }
-    50%{ transform:translateY(-14px) rotate(-3deg); opacity:0.65; }
-  }
-  @keyframes flicoTimelineDrift{
-    0%,100%{ transform:translateX(0); opacity:0.45; }
-    50%{ transform:translateX(10px); opacity:0.7; }
-  }
-  @keyframes flicoCropPulse{
-    0%,100%{ opacity:0.25; transform:scale(1); }
-    50%{ opacity:0.55; transform:scale(1.08); }
-  }
-  @keyframes flicoTrimBlink{
-    0%,100%{ opacity:0.2; }
-    50%{ opacity:0.6; }
-  }
-  @keyframes flicoFxPulse{
-    0%,100%{ transform:scale(1); opacity:0.3; box-shadow:0 0 0 rgba(124,255,0,0); }
-    50%{ transform:scale(1.3); opacity:0.6; box-shadow:0 0 10px rgba(124,255,0,0.35); }
-  }
-  @media (prefers-reduced-motion: reduce){
-    .chat-panel-bg,
-    .chat-panel-bg .bg-grid,
-    .chat-panel-bg::before,
-    .chat-panel-bg::after,
-    .bg-panel, .bg-frame, .bg-timeline, .bg-crop, .bg-trim, .bg-fx{ animation:none; }
+  /* Legacy decorative motif elements are no longer rendered (removed for
+     performance + a cleaner, less distracting surface); rule kept as a
+     no-op safety net in case any are still present in markup/cache. */
+  .bg-grid, .bg-panel, .bg-frame, .bg-timeline, .bg-crop, .bg-trim, .bg-fx{
+    display:none;
   }
 
   .chat-panel{
@@ -4636,12 +4449,19 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
         try{
           while(true){
+            // Some browsers resolve an in-flight reader.read() with one last
+            // buffered chunk instead of rejecting immediately when the signal
+            // is aborted — checking here (before *and* after each read) closes
+            // that race so an interrupted stream can never emit another token.
+            if(controller.signal.aborted){ try{ await reader.cancel(); }catch(e){} break; }
             const { done, value } = await reader.read();
+            if(controller.signal.aborted){ try{ await reader.cancel(); }catch(e){} break; }
             if(done) break;
             buffer += decoder.decode(value, { stream:true });
             const events = buffer.split('\n\n');
             buffer = events.pop() ?? '';
             for(const evt of events){
+              if(controller.signal.aborted) break;
               const line = evt.split('\n').find(l => l.startsWith('data:'));
               if(!line) continue;
               const jsonStr = line.slice(5).trim();
@@ -5942,13 +5762,6 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 <div class="chat-backdrop" id="chatBackdrop"></div>
 <div class="chat-panel" id="chatPanel" role="dialog" aria-modal="true" aria-label="FLICO Assistant chat" aria-hidden="true">
   <div class="chat-panel-bg" aria-hidden="true">
-    <div class="bg-grid"></div>
-    <div class="bg-panel"></div>
-    <div class="bg-frame"></div>
-    <div class="bg-timeline"><span></span><span></span><span></span></div>
-    <div class="bg-crop"></div>
-    <div class="bg-trim"></div>
-    <div class="bg-fx"></div>
   </div>
   <div class="chat-header">
     <div class="chat-header-info">
