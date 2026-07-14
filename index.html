@@ -2203,10 +2203,14 @@
   .chat-msg.bot strong{ font-weight:600; }
   .chat-msg.bot .md-h{ font-weight:600; }
 
-  /* User bubble -- softer flat green, no glow, gentle neutral shadow. */
+  /* User bubble -- exact same FLICO green as the Send/Stop button (#78C841),
+     flat and premium: no gradient, no glossy highlight, no neon glow. */
   .chat-msg.user{
-    background:var(--green);
-    box-shadow:0 2px 8px rgba(0,0,0,0.20);
+    background:#78C841;
+    color:#111111;
+    border:none;
+    border-radius:20px;
+    box-shadow:0 4px 12px rgba(120,200,65,0.12);
   }
 
   /* Typing indicator -- the FLICO signature line only (no label text,
