@@ -5051,21 +5051,30 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     // just keeps pace with whatever's queued.
     // ==========================================================
     function createTypedBubble(){
-      const wrap = document.createElement('div');
-      wrap.className = 'chat-msg-wrap bot';
+      // If a loading indicator is currently on screen, morph it in place:
+      // reuse its exact wrap/row (and therefore its exact avatar element)
+      // instead of tearing it down and building a fresh one. The avatar
+      // never leaves the DOM, so it can't flicker or disappear when the
+      // loading bubble turns into the real reply.
+      const claimed = claimTypingIndicator();
+      const wrap = claimed ? claimed.wrap : document.createElement('div');
+      const row = claimed ? claimed.row : document.createElement('div');
+      const alreadyMounted = !!claimed;
 
-      const row = document.createElement('div');
-      row.className = 'chat-msg-row';
+      if(!claimed){
+        wrap.className = 'chat-msg-wrap bot';
+        row.className = 'chat-msg-row';
 
-      const grouped = lastRenderedRole() === 'bot';
-      if(grouped){
-        row.classList.add('is-grouped');
-      } else {
-        const av = document.createElement('div');
-        av.className = 'chat-msg-avatar';
-        av.setAttribute('aria-hidden', 'true');
-        applyAssistantAvatar(av);
-        row.appendChild(av);
+        const grouped = lastRenderedRole() === 'bot';
+        if(grouped){
+          row.classList.add('is-grouped');
+        } else {
+          const av = document.createElement('div');
+          av.className = 'chat-msg-avatar';
+          av.setAttribute('aria-hidden', 'true');
+          applyAssistantAvatar(av);
+          row.appendChild(av);
+        }
       }
 
       const bubble = document.createElement('div');
@@ -5077,9 +5086,15 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       stamp.textContent = '';
 
       row.appendChild(bubble);
-      wrap.appendChild(row);
-      wrap.appendChild(stamp);
-      chatMessages.appendChild(wrap);
+      if(!alreadyMounted){
+        wrap.appendChild(row);
+        wrap.appendChild(stamp);
+        chatMessages.appendChild(wrap);
+      } else {
+        // row is already inside wrap, which is already in the DOM --
+        // just append the new timestamp element.
+        wrap.appendChild(stamp);
+      }
 
       let carry = '';           // partial word straddling two network chunks
       const queue = [];         // [{ word, space }] tokens waiting to be typed
@@ -5323,6 +5338,25 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       setTimeout(()=>{ if(el.parentNode) el.remove(); }, 120);
     }
 
+    // Hands off the live typing indicator's own wrap/row/avatar so the
+    // reply bubble can be built *inside the same DOM subtree* instead of
+    // destroying the indicator and creating a brand-new avatar element.
+    // This is what makes the loading bubble "morph" into the reply bubble
+    // with the assistant avatar staying mounted the whole time -- no
+    // removal, no fade, no new element, so it can never flicker or vanish.
+    // Returns null if there's no live indicator to claim (falls back to
+    // the normal from-scratch construction).
+    function claimTypingIndicator(){
+      const el = document.getElementById('chatTypingIndicator');
+      if(!el) return null;
+      el.removeAttribute('id');
+      el.classList.remove('chat-typing-fade-out');
+      const row = el.querySelector('.chat-msg-row');
+      const bubble = el.querySelector('.chat-typing');
+      if(bubble) bubble.remove(); // discard only the loading-line bubble
+      return { wrap: el, row };
+    }
+
     function sendMessage(text){
       const trimmed = text.trim();
       if(!trimmed) return;
@@ -5371,7 +5405,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         const thinkDelay = 450 + Math.min(trimmed.length * 12, 700);
         setTimeout(()=>{
           if(activeMsgId !== myId) return; // superseded — silently drop
-          removeTypingIndicator();
+          // createTypedBubble() claims/morphs the live loading indicator
+          // itself (same avatar element) -- do not call
+          // removeTypingIndicator() here, or the real indicator gets
+          // fade-removed while a brand-new bubble/avatar is created,
+          // producing exactly the flicker this is meant to prevent.
           const box = createTypedBubble();
           activeTypedBox = box;
           box.pushAll(result.text);
@@ -5396,7 +5434,8 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
       function ensureBox(){
         if(!box){
-          removeTypingIndicator();
+          // See note above: createTypedBubble() claims/morphs the live
+          // loading indicator itself. Do not remove it first.
           box = createTypedBubble();
           activeTypedBox = box; // register so next sendMessage can cancel it
         }
@@ -5408,8 +5447,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         if(usedFallback) return;
         usedFallback = true;
         if(apiErr) console.error('[FLICO] Chat API failure, showing fallback. Reason:', apiErr?.message || apiErr);
+        // If a bubble was already started, discard it entirely (its content
+        // is being replaced by the fallback message). Otherwise leave the
+        // live loading indicator alone -- createTypedBubble() below claims
+        // and morphs it in place, reusing the same avatar element.
         if(box) box.remove();
-        removeTypingIndicator();
         const fb = createTypedBubble();
         // When the API failed AND no KB intent matched (intentId===null), result.text is
         // the generic OUT_OF_SCOPE string which misleads. Show an API-error message instead.
