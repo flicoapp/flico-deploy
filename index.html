@@ -1233,24 +1233,14 @@
     font-size:12.5px;
     color:var(--white-70);
   }
-  .chat-typing .chat-typing-dots{
-    display:flex;
-    gap:4px;
-  }
-  .chat-typing span{
-    width:5px;
-    height:5px;
-    border-radius:50%;
-    background:var(--green);
-    opacity:0.7;
-    animation:typingBounce 1.2s ease-in-out infinite;
-  }
-  .chat-typing span:nth-child(2){ animation-delay:.15s; }
-  .chat-typing span:nth-child(3){ animation-delay:.3s; }
-  @keyframes typingBounce{
-    0%,60%,100%{ transform:translateY(0); opacity:0.5; }
-    30%{ transform:translateY(-4px); opacity:1; }
-  }
+  /* NOTE: the old dot-based typing indicator's rules (.chat-typing-dots,
+     .chat-typing span, @keyframes typingBounce) lived here. They were dead
+     markup-wise (showTyping() no longer emits dot spans) but their
+     `.chat-typing span` selector still matched the FLICO signature line's
+     <span class="chat-signature-line">, and — being a class+type selector —
+     outranked `.chat-signature-line` alone, silently shrinking it to a 5px
+     dot animating the old bounce keyframes. Removed for good; see
+     .chat-signature-line below for the real, single source of truth. */
 
   /* Interrupted / frozen bot bubble */
   .chat-msg-wrap.is-interrupted .chat-msg.bot{
@@ -2023,10 +2013,8 @@
   .chat-typing{
     animation:msgIn 0.22s var(--ease-out) both;
   }
-  @keyframes typingBounce{
-    0%,60%,100%{ transform:translateY(0);    opacity:0.4; }
-    30%{         transform:translateY(-5px); opacity:1;   }
-  }
+  /* (dead-code duplicate @keyframes typingBounce removed — see the note
+     near .chat-typing-dots earlier in this stylesheet) */
 
   /* ── Chat panel structure ──────────────────────────────────────── */
   .chat-panel{
@@ -2279,7 +2267,7 @@
     color:var(--white-70);
     overflow-wrap:anywhere;
   }
-  .chat-typing .chat-typing-dots{ gap:4px; }
+  /* (dead-code .chat-typing-dots rule removed — see note near line 1236) */
 
   /* 3) Markdown spacing — give every rendered block (heading, paragraph,
      list) the same vertical rhythm via margin-top on all but the first,
@@ -2398,15 +2386,11 @@
     box-shadow:0 2px 8px rgba(0,0,0,0.20);
   }
 
-  /* Typing indicator -- soft gray dots only (no label text, no
-     spinner), inside the same bubble shell as an assistant message.
-     Disappears automatically once a reply starts streaming in via
-     the existing removeTypingIndicator() calls. */
+  /* Typing indicator -- the FLICO signature line only (no label text,
+     no dots, no spinner), inside the same bubble shell as an assistant
+     message. Disappears automatically once a reply starts streaming in
+     via the existing removeTypingIndicator() calls. */
   .chat-typing{ padding:13px 16px; }
-  .chat-typing span{
-    background:#A1A1A1;
-    opacity:0.6;
-  }
 
   /* ── FLICO Signature Loading Animation ─────────────────────────────
      Replaces the dot-based typing indicator with a single animated
@@ -5292,10 +5276,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
     function showTyping(){
       isTyping = true;
-      // Modern typing indicator: three soft dots inside the same bubble
-      // shell as an assistant message -- no "FLICO is thinking..." label,
-      // no spinner. removeTypingIndicator() (called the instant a reply
-      // starts streaming/typing in) takes it back out.
+      // FLICO signature loading indicator: the assistant avatar plus a
+      // small bubble containing only the animated signature line -- no
+      // "FLICO is thinking..." label, no dots, no spinner. Always shows
+      // the avatar (never grouped/hidden) so the loading state looks
+      // exactly like a normal, standalone assistant message.
+      // removeTypingIndicator() (called the instant a reply starts
+      // streaming/typing in) takes it back out.
       if(!document.getElementById('chatTypingIndicator')){
         const wrap = document.createElement('div');
         wrap.className = 'chat-msg-wrap bot';
@@ -5304,16 +5291,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         const row = document.createElement('div');
         row.className = 'chat-msg-row';
 
-        const grouped = lastRenderedRole() === 'bot';
-        if(grouped){
-          row.classList.add('is-grouped');
-        } else {
-          const av = document.createElement('div');
-          av.className = 'chat-msg-avatar';
-          av.setAttribute('aria-hidden', 'true');
-          applyAssistantAvatar(av);
-          row.appendChild(av);
-        }
+        const av = document.createElement('div');
+        av.className = 'chat-msg-avatar';
+        av.setAttribute('aria-hidden', 'true');
+        applyAssistantAvatar(av);
+        row.appendChild(av);
 
         const bubble = document.createElement('div');
         bubble.className = 'chat-typing';
