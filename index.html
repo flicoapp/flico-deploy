@@ -2507,6 +2507,50 @@
     transition-duration:0.08s;
   }
   .chat-input-row button:disabled{ box-shadow:none; transform:none; }
+
+  /* ==========================================================
+     FLICO Assistant — message interruption & network handling
+     Purely additive UI: a new message always cancels/replaces any
+     response in progress (JS-side, in attemptAssistantReply /
+     sendMessage), and connectivity failures get an inline red notice
+     with a Retry button instead of a popup/alert. No layout, theme,
+     color (outside the red error text), avatar, or chat-logic change.
+     ========================================================== */
+  .chat-network-error{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:10px;
+    margin:6px 0 14px 0;
+    padding:0 4px;
+    background:transparent;
+  }
+  .chat-network-error-msg{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:#FF4D4F;
+    font-weight:500;
+    font-size:14px;
+    line-height:1.4;
+    background:transparent;
+  }
+  .chat-network-error-icon{ flex:none; color:#FF4D4F; }
+  .chat-retry-btn{
+    height:36px;
+    padding:0 18px;
+    border:1px solid #FF4D4F;
+    border-radius:16px;
+    background:transparent;
+    color:#FF4D4F;
+    font-weight:500;
+    font-size:14px;
+    cursor:pointer;
+    transition:background 0.15s ease, transform 0.15s ease;
+  }
+  .chat-retry-btn:hover{ background:rgba(255,77,79,0.08); }
+  .chat-retry-btn:active{ transform:scale(0.96); }
+  .chat-retry-btn:disabled{ opacity:0.55; cursor:default; }
 </style>
 </head>
 <body>
@@ -4534,18 +4578,39 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       activeStreamAbort = () => controller.abort(); // expose so sendMessage can cancel
       const timer = setTimeout(()=> controller.abort(), ASSISTANT_TIMEOUT_MS);
       try{
-        const res = await fetch(ASSISTANT_API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message,
-            lang,
-            mode,
-            history: recentHistoryForApi(),
-            systemPrompt: buildSystemPromptForRequest()
-          }),
-          signal: controller.signal
-        });
+        // Fail fast and unambiguously when the browser already knows it has no
+        // connection, instead of waiting out the full request timeout.
+        if(typeof navigator !== 'undefined' && navigator.onLine === false){
+          const netErr = new Error('offline');
+          netErr.isNetworkError = true;
+          throw netErr;
+        }
+
+        let res;
+        try{
+          res = await fetch(ASSISTANT_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message,
+              lang,
+              mode,
+              history: recentHistoryForApi(),
+              systemPrompt: buildSystemPromptForRequest()
+            }),
+            signal: controller.signal
+          });
+        } catch(fetchErr){
+          // fetch() itself throwing (TypeError "Failed to fetch", DNS failure,
+          // connection refused, or an aborted request — including our own
+          // timeout above) means the request never got a response at all.
+          // That's a connectivity problem, not a backend/API error, so it's
+          // tagged distinctly from the HTTP-status errors below.
+          const netErr = new Error('network_unreachable');
+          netErr.isNetworkError = true;
+          netErr.cause = fetchErr;
+          throw netErr;
+        }
         if(!res.ok || !res.body){
           // Read and log the backend error body so the browser console shows exactly
           // what /api/chat returned (e.g. missing key, OpenRouter error detail, etc.)
@@ -4560,22 +4625,31 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         let buffer = '';
         let gotAnyText = false;
 
-        while(true){
-          const { done, value } = await reader.read();
-          if(done) break;
-          buffer += decoder.decode(value, { stream:true });
-          const events = buffer.split('\n\n');
-          buffer = events.pop() ?? '';
-          for(const evt of events){
-            const line = evt.split('\n').find(l => l.startsWith('data:'));
-            if(!line) continue;
-            const jsonStr = line.slice(5).trim();
-            if(!jsonStr) continue;
-            try{
-              const parsed = JSON.parse(jsonStr);
-              if(parsed.text){ gotAnyText = true; onChunk(parsed.text); }
-            } catch(e){ /* ignore partial/malformed chunk */ }
+        try{
+          while(true){
+            const { done, value } = await reader.read();
+            if(done) break;
+            buffer += decoder.decode(value, { stream:true });
+            const events = buffer.split('\n\n');
+            buffer = events.pop() ?? '';
+            for(const evt of events){
+              const line = evt.split('\n').find(l => l.startsWith('data:'));
+              if(!line) continue;
+              const jsonStr = line.slice(5).trim();
+              if(!jsonStr) continue;
+              try{
+                const parsed = JSON.parse(jsonStr);
+                if(parsed.text){ gotAnyText = true; onChunk(parsed.text); }
+              } catch(e){ /* ignore partial/malformed chunk */ }
+            }
           }
+        } catch(readErr){
+          // The connection dropped mid-stream — also a connectivity failure,
+          // not a malformed-response case.
+          const netErr = new Error('network_unreachable');
+          netErr.isNetworkError = true;
+          netErr.cause = readErr;
+          throw netErr;
         }
         if(!gotAnyText){
           console.error('[FLICO] /api/chat returned HTTP 200 but the SSE stream had zero text chunks. Check Cloudflare real-time logs for model errors.');
@@ -4853,6 +4927,14 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     let activeMsgId = 0;          // increments with every sendMessage call
     let activeStreamAbort = null; // fn that aborts the live fetch; null when idle
     let activeTypedBox = null;    // the currently-running typewriter box; null when idle
+    let activeNetworkErrorEl = null; // the inline "unable to connect" row; null when idle
+
+    // Removes any inline network-error row still on screen. Called whenever a
+    // new message is sent (it must never sit alongside a fresh reply) and
+    // whenever a retry begins/succeeds.
+    function removeActiveNetworkError(){
+      if(activeNetworkErrorEl){ activeNetworkErrorEl.remove(); activeNetworkErrorEl = null; }
+    }
 
     function getHistory(){
       try{
@@ -5360,85 +5442,75 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       return { wrap: el, row };
     }
 
-    function sendMessage(text){
-      const trimmed = text.trim();
-      if(!trimmed) return;
-
-      // Interrupt any in-progress stream: abort the fetch so no more chunks
-      // arrive, then freeze the active typewriter bubble so the already-typed
-      // partial response stays visible instead of disappearing.
-      if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
-      if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
-      const myId = ++activeMsgId;
+    // Persists a finished reply (local KB or Gemini) into history. Hoisted to
+    // module scope (rather than nested in sendMessage) so the Retry flow —
+    // which runs after sendMessage has already returned — can call it too.
+    function commitReply(myId, reply, intentId){
+      if(activeMsgId !== myId) return; // superseded by a newer message
+      const h = getHistory();
+      h.push({ role:'bot', text:reply, time: formatTime() });
+      saveHistory(h);
+      saveLastIntent(intentId);
+      scheduleMoodRevert();
       isTyping = false;
-      removeTypingIndicator();
+    }
 
-      hideSuggestions();
-      ensureDateSeparator();
-      const time = formatTime();
-      renderMessage('user', trimmed, time, true);
+    // Inline, non-blocking connectivity error: transparent background, small
+    // warning glyph, red message text, and a Retry button that re-runs the
+    // exact same request. No popup/alert is ever used.
+    function renderNetworkError(onRetry){
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-network-error';
 
-      if(detectAppreciation(trimmed)) holdLoveMood();
+      const msg = document.createElement('div');
+      msg.className = 'chat-network-error-msg';
+      msg.innerHTML =
+        '<svg class="chat-network-error-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+          '<path d="M12 9v4.5M12 16.8h.01M10.4 3.9 1.9 18.6a1.6 1.6 0 0 0 1.39 2.4h17.4a1.6 1.6 0 0 0 1.4-2.4L13.6 3.9a1.6 1.6 0 0 0-2.78 1z" ' +
+            'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '</svg>' +
+        '<span>Unable to connect. Please check your internet connection.</span>';
+      wrap.appendChild(msg);
 
-      const history = getHistory();
-      const isFirstMessage = history.length === 0;
-      history.push({ role:'user', text:trimmed, time });
-      saveHistory(history);
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.className = 'chat-retry-btn';
+      retryBtn.textContent = 'Retry';
+      retryBtn.addEventListener('click', function(){
+        retryBtn.disabled = true;
+        onRetry();
+      });
+      wrap.appendChild(retryBtn);
 
-      chatInput.value = '';
-      showTyping();
+      chatMessages.appendChild(wrap);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return wrap;
+    }
 
-      const ctx = { isFirst: isFirstMessage, lastIntentId: getLastIntent(), lastRaw: trimmed };
-      const result = getResponse(trimmed, ctx);
-
-      function commitReply(reply, intentId){
-        if(activeMsgId !== myId) return; // superseded by a newer message
-        const h = getHistory();
-        h.push({ role:'bot', text:reply, time: formatTime() });
-        saveHistory(h);
-        saveLastIntent(intentId);
-        scheduleMoodRevert();
-        isTyping = false;
-      }
-
-      if(result.route === 'local'){
-        // Deterministic KB / conversational-fallback reply — types itself out
-        // word-by-word after a brief thinking pause. Guard: if the user sends
-        // another message during the delay, this callback is a no-op.
-        const thinkDelay = 450 + Math.min(trimmed.length * 12, 700);
-        setTimeout(()=>{
-          if(activeMsgId !== myId) return; // superseded — silently drop
-          // createTypedBubble() claims/morphs the live loading indicator
-          // itself (same avatar element) -- do not call
-          // removeTypingIndicator() here, or the real indicator gets
-          // fade-removed while a brand-new bubble/avatar is created,
-          // producing exactly the flicker this is meant to prevent.
-          const box = createTypedBubble();
-          activeTypedBox = box;
-          box.pushAll(result.text);
-          box.close();
-          box.whenDone.then((finalText)=>{
-            if(activeTypedBox === box) activeTypedBox = null;
-            commitReply(finalText, result.intentId);
-          });
-        }, thinkDelay);
-        return;
-      }
-
-      // Gemini-routed (the primary path for anything beyond greetings, quick
-      // actions, and UI shortcuts): the network stream feeds the typewriter as
-      // chunks arrive, but the on-screen reveal paces itself independently —
-      // so a fast API response still *types*, and a slow one doesn't feel
-      // stalled. Falls back to the local `result.text` on any failure,
-      // timeout, or if Gemini returns nothing usable.
-      const typingStart = Date.now();
+    // Gemini-routed request/response cycle (the primary path for anything
+    // beyond greetings, quick actions, and UI shortcuts): the network stream
+    // feeds the typewriter as chunks arrive, but the on-screen reveal paces
+    // itself independently — so a fast API response still *types*, and a
+    // slow one doesn't feel stalled. Falls back to the local `result.text`
+    // on any non-connectivity failure, or shows an inline retry prompt when
+    // the request failed because of connectivity. Hoisted to module scope so
+    // Retry can re-invoke it standalone, without re-running the rest of
+    // sendMessage (which would re-render the user's message a second time).
+    function attemptAssistantReply(trimmed, result, myId, opts){
+      const isRetry = !!(opts && opts.isRetry);
       let box = null;
       let usedFallback = false;
 
+      // On retry, bring back the exact same FLICO loading animation used for
+      // a first attempt (avatar + signature line) -- createTypedBubble()
+      // below morphs it into the real reply the moment text starts arriving,
+      // same as the normal send flow.
+      if(isRetry) showTyping();
+
       function ensureBox(){
         if(!box){
-          // See note above: createTypedBubble() claims/morphs the live
-          // loading indicator itself. Do not remove it first.
+          // createTypedBubble() claims/morphs the live loading indicator
+          // itself. Do not remove it first.
           box = createTypedBubble();
           activeTypedBox = box; // register so next sendMessage can cancel it
         }
@@ -5463,7 +5535,32 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           : result.text;
         fb.pushAll(fallbackText);
         fb.close();
-        fb.whenDone.then((finalText)=> commitReply(finalText, result.intentId));
+        fb.whenDone.then((finalText)=> commitReply(myId, finalText, result.intentId));
+      }
+
+      // Connectivity-specific failure: no backend/API reply is possible right
+      // now, so show the inline red "Unable to connect" row + Retry instead
+      // of a typed fallback bubble. Retry re-runs this exact same attempt.
+      function handleNetworkFailure(err){
+        if(activeMsgId !== myId) return; // superseded by a newer message — silently drop
+        if(usedFallback) return;
+        usedFallback = true;
+        console.error('[FLICO] Connectivity failure, showing retry prompt. Reason:', err?.message || err);
+        isTyping = false;
+        removeTypingIndicator();
+        if(box){
+          // Preserve any partial text that streamed in before the connection
+          // dropped, same treatment as a user-interrupted reply.
+          if(box.hasRevealedAnything()) box.freeze(); else box.remove();
+          if(activeTypedBox === box) activeTypedBox = null;
+          box = null;
+        }
+        removeActiveNetworkError();
+        activeNetworkErrorEl = renderNetworkError(function(){
+          if(activeMsgId !== myId) return; // a newer message superseded this one
+          removeActiveNetworkError();
+          attemptAssistantReply(trimmed, result, myId, { isRetry:true });
+        });
       }
 
       streamAssistantReply(trimmed, result.lang, result.intentId ? 'grounded' : 'general', (chunk)=>{
@@ -5478,7 +5575,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
             box.close();
             box.whenDone.then((finalText)=>{
               if(activeTypedBox === box) activeTypedBox = null;
-              commitReply(finalText, result.intentId);
+              commitReply(myId, finalText, result.intentId);
             });
           } else {
             runFallback(new Error('api_returned_no_text'));
@@ -5486,8 +5583,70 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         }, 50);
       }).catch((err)=>{
         console.error('[FLICO] streamAssistantReply threw:', err);
-        runFallback(err);
+        if(err && err.isNetworkError) handleNetworkFailure(err);
+        else runFallback(err);
       });
+    }
+
+    function sendMessage(text){
+      const trimmed = text.trim();
+      if(!trimmed) return;
+
+      // Interrupt any in-progress stream: abort the fetch so no more chunks
+      // arrive, then freeze the active typewriter bubble so the already-typed
+      // partial response stays visible instead of disappearing. A new prompt
+      // always takes priority — never let two replies stream at once, and
+      // never leave a stale retry prompt sitting above the new exchange.
+      if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
+      if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
+      removeActiveNetworkError();
+      const myId = ++activeMsgId;
+      isTyping = false;
+      removeTypingIndicator();
+
+      hideSuggestions();
+      ensureDateSeparator();
+      const time = formatTime();
+      renderMessage('user', trimmed, time, true);
+
+      if(detectAppreciation(trimmed)) holdLoveMood();
+
+      const history = getHistory();
+      const isFirstMessage = history.length === 0;
+      history.push({ role:'user', text:trimmed, time });
+      saveHistory(history);
+
+      chatInput.value = '';
+      showTyping();
+
+      const ctx = { isFirst: isFirstMessage, lastIntentId: getLastIntent(), lastRaw: trimmed };
+      const result = getResponse(trimmed, ctx);
+
+      if(result.route === 'local'){
+        // Deterministic KB / conversational-fallback reply — types itself out
+        // word-by-word after a brief thinking pause. Guard: if the user sends
+        // another message during the delay, this callback is a no-op.
+        const thinkDelay = 450 + Math.min(trimmed.length * 12, 700);
+        setTimeout(()=>{
+          if(activeMsgId !== myId) return; // superseded — silently drop
+          // createTypedBubble() claims/morphs the live loading indicator
+          // itself (same avatar element) -- do not call
+          // removeTypingIndicator() here, or the real indicator gets
+          // fade-removed while a brand-new bubble/avatar is created,
+          // producing exactly the flicker this is meant to prevent.
+          const box = createTypedBubble();
+          activeTypedBox = box;
+          box.pushAll(result.text);
+          box.close();
+          box.whenDone.then((finalText)=>{
+            if(activeTypedBox === box) activeTypedBox = null;
+            commitReply(myId, finalText, result.intentId);
+          });
+        }, thinkDelay);
+        return;
+      }
+
+      attemptAssistantReply(trimmed, result, myId, { isRetry:false });
     }
 
     let scrollLockY = 0;
