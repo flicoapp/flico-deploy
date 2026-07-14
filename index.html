@@ -4648,11 +4648,18 @@ Every reply should feel like it comes directly from the official FLICO team.`;
             signal: controller.signal
           });
         } catch(fetchErr){
-          // fetch() itself throwing (TypeError "Failed to fetch", DNS failure,
-          // connection refused, or an aborted request — including our own
-          // timeout above) means the request never got a response at all.
-          // That's a connectivity problem, not a backend/API error, so it's
-          // tagged distinctly from the HTTP-status errors below.
+          // An intentional Stop/interrupt fired before the response headers
+          // even arrived — fetch() rejects with AbortError in that case.
+          // That's a clean, deliberate cancellation, not a connectivity
+          // failure, so resolve normally instead of surfacing a fake
+          // "unable to connect" retry prompt for a request the user (or a
+          // newer message) just killed on purpose.
+          if(controller.signal.aborted) return true;
+          // Any other fetch() throw (TypeError "Failed to fetch", DNS
+          // failure, connection refused, or our own timeout above) means
+          // the request never got a response at all. That's a genuine
+          // connectivity problem, not a backend/API error, so it's tagged
+          // distinctly from the HTTP-status errors below.
           const netErr = new Error('network_unreachable');
           netErr.isNetworkError = true;
           netErr.cause = fetchErr;
@@ -4698,12 +4705,17 @@ Every reply should feel like it comes directly from the official FLICO team.`;
             }
           }
         } catch(readErr){
-          // The connection dropped mid-stream — also a connectivity failure,
-          // not a malformed-response case.
-          const netErr = new Error('network_unreachable');
-          netErr.isNetworkError = true;
-          netErr.cause = readErr;
-          throw netErr;
+          // reader.read() can reject (instead of resolving) when the abort
+          // fires mid-read — that's the same deliberate Stop/interrupt as
+          // above, not a dropped connection. Let it fall through to the
+          // clean "aborted" return just below instead of misreporting it
+          // as a connectivity failure.
+          if(!controller.signal.aborted){
+            const netErr = new Error('network_unreachable');
+            netErr.isNetworkError = true;
+            netErr.cause = readErr;
+            throw netErr;
+          }
         }
         // An intentional interrupt (user sent a new message) breaks the read
         // loop early with no error — don't log/throw as if the API failed.
@@ -5916,8 +5928,23 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         if(!btn.classList.contains('is-streaming')) return;
         e.preventDefault();
         e.stopImmediatePropagation();
+        // Bump the shared activeMsgId the exact same way a new sendMessage()
+        // call would. Every async continuation in attemptAssistantReply
+        // (chunk callback, runFallback, handleNetworkFailure, the .then()
+        // completion branch) already guards itself with
+        // `if(activeMsgId !== myId) return;` — bumping here makes all of
+        // them treat this request as superseded with zero extra plumbing,
+        // so a manual Stop can never surface a fallback reply or a spurious
+        // "connection failed" retry banner for the request it just killed.
+        activeMsgId++;
         if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
         if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
+        // Cover the case where Stop is pressed before the first chunk/box
+        // exists yet — the signature-line loading bubble is still on
+        // screen and must be cleared immediately, not left stuck.
+        isTyping = false;
+        removeTypingIndicator();
+        removeActiveNetworkError();
         revertToSend();
       }, { capture: true });
 
