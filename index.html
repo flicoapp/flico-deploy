@@ -2413,10 +2413,13 @@
   .chat-signature-line{
     display:block;
     width:36px;
-    height:4px;
+    height:6px;
     border-radius:9999px;
     background:#78C841;
-    box-shadow:0 0 6px rgba(120,200,65,0.12);
+    background:linear-gradient(90deg, #6BB438 0%, #78C841 50%, #82D94A 100%);
+    box-shadow:
+      0 0 4px rgba(120,200,65,0.25),
+      0 0 8px rgba(120,200,65,0.15);
     animation:flicoSignatureLine 1000ms ease-in-out infinite;
   }
   @keyframes flicoSignatureLine{
