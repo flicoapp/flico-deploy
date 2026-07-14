@@ -2399,8 +2399,10 @@
     /* Clearly visible soft-green border — 0.58 opacity is readable
        against #141414 without looking neon.                       */
     border:1.75px solid rgba(100,210,70,0.58) !important;
-    /* Subtle inner shadow adds depth without a second border       */
-    box-shadow:inset 0 1px 3px rgba(0,0,0,0.45) !important;
+    /* Inner green ring (1.5px inset, low-opacity) + depth shadow  */
+    box-shadow:
+      inset 0 0 0 1.5px rgba(108,210,78,0.18),
+      inset 0 1px 3px rgba(0,0,0,0.45) !important;
     backdrop-filter:none !important;
     -webkit-backdrop-filter:none !important;
     transition:border-color .2s ease, box-shadow .2s ease !important;
@@ -2408,8 +2410,10 @@
   /* Brighten border on focus — still soft, not neon               */
   .chat-input-row:focus-within{
     border-color:rgba(110,225,78,0.82) !important;
-    box-shadow:inset 0 1px 3px rgba(0,0,0,0.45),
-               0 0 0 2.5px rgba(100,210,70,0.10) !important;
+    box-shadow:
+      inset 0 0 0 1.5px rgba(108,210,78,0.32),
+      inset 0 1px 3px rgba(0,0,0,0.45),
+      0 0 0 2.5px rgba(100,210,70,0.10) !important;
   }
 
   /* ── Textarea ─────────────────────────────────────────────── */
@@ -2527,22 +2531,6 @@
     transform:scale(1);
   }
 
-  /* ── Send fly-out animation ───────────────────────────────── */
-  /* Keyframe: plane flies up-right, snaps back to centre, then
-     fades in again — all in one continuous pass.               */
-  @keyframes flicoSendFly{
-    0%  { opacity:1; transform:translate(0,0)    scale(1);    }
-    40% { opacity:0; transform:translate(4px,-9px) scale(0.78); }
-    41% { opacity:0; transform:translate(0,0)    scale(1);    }
-    100%{ opacity:1; transform:translate(0,0)    scale(1);    }
-  }
-  /* Class added by JS on submit; removed on animationend.
-     JS clears this class before entering streaming state so the
-     fly-out and the fade-to-stop never overlap.                 */
-  .btn-send-icon.flico-flying{
-    animation:flicoSendFly .36s cubic-bezier(.4,0,.2,1) forwards;
-  }
-
   /* ── Legacy attach-hint (empty placeholder span) ──────────── */
   .chat-attach-hint{ display:none !important; }
 
@@ -2573,7 +2561,6 @@
 
   /* ── Reduced-motion: skip animations ──────────────────────── */
   @media (prefers-reduced-motion:reduce){
-    .btn-send-icon.flico-flying{ animation:none !important; }
     .btn-send-icon, .btn-stop-icon{ transition:none !important; }
   }
 
@@ -5853,12 +5840,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     // Uses the same module-level activeStreamAbort / activeTypedBox variables
     // that already exist in this DOMContentLoaded scope.
     (function setupComposerState(){
-      const btn       = document.getElementById('chatSendStopBtn');
-      const sendIcon  = btn  ? btn.querySelector('.btn-send-icon')  : null;
-      const stopIcon  = btn  ? btn.querySelector('.btn-stop-icon')  : null;
-      const input     = chatInput;
-      const form      = chatForm;
-      if(!btn || !sendIcon || !stopIcon || !input || !form) return;
+      const btn      = document.getElementById('chatSendStopBtn');
+      const stopIcon = btn ? btn.querySelector('.btn-stop-icon') : null;
+      const input    = chatInput;
+      const form     = chatForm;
+      if(!btn || !stopIcon || !input || !form) return;
 
       let streamPoll = null;
 
@@ -5868,8 +5854,6 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         streamPoll = null;
         btn.classList.remove('is-streaming');
         btn.disabled = input.value.trim().length === 0;
-        // Ensure send icon is fully reset (no stale animation class).
-        sendIcon.classList.remove('flico-flying');
       }
 
       // Enter streaming mode: show Stop, keep button clickable.
@@ -5879,8 +5863,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // Poll every 120 ms; as soon as activeStreamAbort is null the
         // stream has finished naturally → revert to Send state.
         clearInterval(streamPoll);
+        // Keep stop button visible until BOTH the fetch stream and the
+        // typewriter have finished. activeStreamAbort → null when the last
+        // SSE chunk is received; activeTypedBox → null when typing is done.
         streamPoll = setInterval(function(){
-          if(!activeStreamAbort){
+          if(!activeStreamAbort && !activeTypedBox){
             exitStreamingState();
           } else {
             // Keep the button enabled while streaming — the existing
@@ -5891,32 +5878,12 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         }, 120);
       }
 
-      // Trigger the fly-out animation then reset, preventing stacking.
-      function triggerSendAnimation(){
-        sendIcon.classList.remove('flico-flying');
-        // Force reflow so removing then re-adding the class restarts the animation.
-        void sendIcon.offsetWidth;
-        sendIcon.classList.add('flico-flying');
-        sendIcon.addEventListener('animationend', function handler(){
-          sendIcon.classList.remove('flico-flying');
-          sendIcon.removeEventListener('animationend', handler);
-        }, { once: true });
-      }
-
-      // Intercept form submit (capture so we run before the existing listener).
+      // Intercept form submit — enter streaming state once sendMessage()
+      // has had one tick to register the new activeStreamAbort handle.
+      // Airplane icon stays static (no fly animation per design spec).
       form.addEventListener('submit', function(){
-        // Play the send animation every time, starting clean.
-        triggerSendAnimation();
-        // Give sendMessage() a tick to register the new activeStreamAbort.
-        // activeStreamAbort is set synchronously at the top of
-        // streamAssistantReply(), so 80 ms is more than enough.
         setTimeout(function(){
-          if(activeStreamAbort){
-            // Cancel the fly animation before adding is-streaming so
-            // the fly-out and the fade-to-stop never fight each other.
-            sendIcon.classList.remove('flico-flying');
-            enterStreamingState();
-          }
+          if(activeStreamAbort){ enterStreamingState(); }
         }, 80);
       }, { capture: true });
 
@@ -6094,8 +6061,8 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       </span>
       <!-- Stop icon (shown while AI is streaming) -->
       <span class="btn-stop-icon" aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <rect x="0" y="0" width="14" height="14" rx="2.5" fill="#FFFFFF"/>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="0" y="0" width="18" height="18" rx="3.5" fill="#FFFFFF"/>
         </svg>
       </span>
     </button>
