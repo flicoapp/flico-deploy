@@ -2475,23 +2475,19 @@
     margin:0 !important;
     padding:0 !important;
     box-shadow:0 2px 8px rgba(0,0,0,0.25) !important;
-    transition:
-      transform .18s cubic-bezier(.34,1.56,.64,1),
-      box-shadow .18s ease,
-      opacity    .18s ease !important;
+    /* No transform — airplane must never move                     */
+    transition:box-shadow .18s ease, opacity .18s ease !important;
   }
   .chat-input-row button[type="submit"]:hover:not(:disabled){
-    transform:translateY(-1px) scale(1.05) !important;
-    box-shadow:0 4px 14px rgba(0,0,0,0.30) !important;
+    /* Shadow brightens on hover; button does not translate or scale */
+    box-shadow:0 4px 14px rgba(76,209,55,0.40) !important;
   }
   .chat-input-row button[type="submit"]:active:not(:disabled){
-    transform:scale(0.91) !important;
     box-shadow:0 1px 4px rgba(0,0,0,0.18) !important;
     transition-duration:.08s !important;
   }
   .chat-input-row button[type="submit"]:disabled{
     opacity:0.35 !important;
-    transform:none !important;
     box-shadow:none !important;
     cursor:not-allowed !important;
   }
@@ -2513,22 +2509,20 @@
     align-items:center;
     justify-content:center;
     pointer-events:none;
-    /* 170 ms fade+scale — feels snappy without being jarring     */
-    transition:opacity .17s ease, transform .17s ease;
-    will-change:opacity,transform;
+    /* Opacity-only fade — NO transform so airplane never moves    */
+    transition:opacity .17s ease;
+    will-change:opacity;
   }
   /* Resting state: airplane visible, stop hidden                  */
-  .btn-send-icon{ opacity:1; transform:scale(1);    }
-  .btn-stop-icon{ opacity:0; transform:scale(0.60); }
+  .btn-send-icon{ opacity:1; }
+  .btn-stop-icon{ opacity:0; }
 
   /* Streaming state: stop visible, airplane hidden                */
   .chat-input-row button[type="submit"].is-streaming .btn-send-icon{
     opacity:0;
-    transform:scale(0.60);
   }
   .chat-input-row button[type="submit"].is-streaming .btn-stop-icon{
     opacity:1;
-    transform:scale(1);
   }
 
   /* ── Legacy attach-hint (empty placeholder span) ──────────── */
@@ -5836,67 +5830,64 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     }
 
     // ── Composer streaming state: Send ↔ Stop icon swap ───────────────────
-    // Purely cosmetic — no chat logic, streaming, or API code is changed.
-    // Uses the same module-level activeStreamAbort / activeTypedBox variables
-    // that already exist in this DOMContentLoaded scope.
+    // Purely cosmetic layer — no chat logic, streaming, or API code changed.
+    // Reads the module-level activeStreamAbort / activeTypedBox variables
+    // that already exist in this scope; creates zero new module-level state.
     (function setupComposerState(){
-      const btn      = document.getElementById('chatSendStopBtn');
-      const stopIcon = btn ? btn.querySelector('.btn-stop-icon') : null;
-      const input    = chatInput;
-      const form     = chatForm;
-      if(!btn || !stopIcon || !input || !form) return;
+      const btn   = document.getElementById('chatSendStopBtn');
+      const input = chatInput;
+      const form  = chatForm;
+      if(!btn || !input || !form) return;
 
-      let streamPoll = null;
+      let poll = null; // local only — not a module-level variable
 
-      // Restore airplane and re-sync the disabled state.
-      function exitStreamingState(){
-        clearInterval(streamPoll);
-        streamPoll = null;
+      // Immediately cancel everything and snap back to Send.
+      // Called by Stop click AND naturally when poll detects completion.
+      function revertToSend(){
+        clearInterval(poll); poll = null;
         btn.classList.remove('is-streaming');
         btn.disabled = input.value.trim().length === 0;
       }
 
-      // Enter streaming mode: show Stop, keep button clickable.
-      function enterStreamingState(){
-        btn.classList.add('is-streaming');
-        btn.disabled = false;
-        // Poll every 120 ms; as soon as activeStreamAbort is null the
-        // stream has finished naturally → revert to Send state.
-        clearInterval(streamPoll);
-        // Keep stop button visible until BOTH the fetch stream and the
-        // typewriter have finished. activeStreamAbort → null when the last
-        // SSE chunk is received; activeTypedBox → null when typing is done.
-        streamPoll = setInterval(function(){
-          if(!activeStreamAbort && !activeTypedBox){
-            exitStreamingState();
-          } else {
-            // Keep the button enabled while streaming — the existing
-            // syncSendButtonState listener may re-disable it when the
-            // textarea is empty, so we re-assert on every tick.
-            btn.disabled = false;
-          }
-        }, 120);
-      }
-
-      // Intercept form submit — enter streaming state once sendMessage()
-      // has had one tick to register the new activeStreamAbort handle.
-      // Airplane icon stays static (no fly animation per design spec).
+      // On every submit, start watching for an active response.
+      // Handles BOTH routes:
+      //   • Gemini / API  → activeStreamAbort is set within ~1 tick
+      //   • Local KB      → activeStreamAbort stays null but activeTypedBox
+      //                      is set after the thinkDelay (~450–1150 ms)
+      // The poll runs every 80 ms and gives up after 3 s if nothing fires.
       form.addEventListener('submit', function(){
-        setTimeout(function(){
-          if(activeStreamAbort){ enterStreamingState(); }
+        clearInterval(poll);
+        let everActive = false; // true once we've seen any active state
+        let idleTicks  = 0;     // ticks elapsed with nothing active yet
+        const MAX_IDLE = 38;    // 38 × 80 ms ≈ 3 s maximum wait
+
+        poll = setInterval(function(){
+          const active = !!(activeStreamAbort || activeTypedBox);
+
+          if(active){
+            everActive = true;
+            idleTicks  = 0;
+            // Show Stop button and keep it enabled.
+            btn.classList.add('is-streaming');
+            btn.disabled = false;
+          } else if(everActive){
+            // Was active, now genuinely finished — revert immediately.
+            revertToSend();
+          } else if(++idleTicks >= MAX_IDLE){
+            // Never became active within 3 s — nothing to track.
+            clearInterval(poll); poll = null;
+          }
         }, 80);
       }, { capture: true });
 
-      // Stop button: abort the current stream when button is clicked in
-      // streaming mode. Prevent the default submit so no new message fires.
+      // Stop click: cancel everything right now, no delay.
       btn.addEventListener('click', function(e){
         if(!btn.classList.contains('is-streaming')) return;
         e.preventDefault();
         e.stopImmediatePropagation();
-        // Mirror what sendMessage does on interrupt, but without a new message.
         if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
         if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
-        exitStreamingState();
+        revertToSend();
       }, { capture: true });
 
     })();
@@ -6061,8 +6052,8 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       </span>
       <!-- Stop icon (shown while AI is streaming) -->
       <span class="btn-stop-icon" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect x="0" y="0" width="18" height="18" rx="3.5" fill="#FFFFFF"/>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="0" y="0" width="16" height="16" rx="3.5" fill="#FFFFFF"/>
         </svg>
       </span>
     </button>
