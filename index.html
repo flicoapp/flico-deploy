@@ -4480,6 +4480,9 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           netErr.cause = readErr;
           throw netErr;
         }
+        // An intentional interrupt (user sent a new message) breaks the read
+        // loop early with no error — don't log/throw as if the API failed.
+        if(controller.signal.aborted) return true;
         if(!gotAnyText){
           console.error('[FLICO] /api/chat returned HTTP 200 but the SSE stream had zero text chunks. Check Cloudflare real-time logs for model errors.');
           throw new Error('assistant_api_empty');
