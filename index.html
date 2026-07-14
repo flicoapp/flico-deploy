@@ -4575,7 +4575,16 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     // caller can fall back to the local reply.
     async function streamAssistantReply(message, lang, mode, onChunk){
       const controller = new AbortController();
-      activeStreamAbort = () => controller.abort(); // expose so sendMessage can cancel
+      // Give this specific call's abort handle an identity of its own. Two
+      // streamAssistantReply calls can be in flight at once for a brief
+      // window right after an interrupt (the old one is still unwinding its
+      // aborted fetch while the new one has already started) -- without this,
+      // the old call's `finally` block would unconditionally null out
+      // activeStreamAbort and silently erase the *new* call's abort handle,
+      // leaving the new stream with no way to be cancelled by a third
+      // message. Only the call that still owns the slot may clear it.
+      const myAbort = () => controller.abort();
+      activeStreamAbort = myAbort; // expose so sendMessage can cancel
       const timer = setTimeout(()=> controller.abort(), ASSISTANT_TIMEOUT_MS);
       try{
         // Fail fast and unambiguously when the browser already knows it has no
@@ -4658,7 +4667,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         return true;
       } finally {
         clearTimeout(timer);
-        activeStreamAbort = null; // stream finished or aborted — clear handle
+        // Only clear the shared handle if it's still ours -- see the note
+        // above. If a newer message has already installed its own abort
+        // handle, leave it alone so the new stream stays cancellable.
+        if(activeStreamAbort === myAbort) activeStreamAbort = null;
       }
     }
 
@@ -5282,19 +5294,29 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
       function kick(){ if(!looping) step(); }
 
+      // Hard terminal guard: once true, this bubble is permanently done and
+      // must never render another token again, no matter what calls it or
+      // when. This is what actually stops a story from continuing to type
+      // after the user sends a new message -- aborting the network request
+      // stops *new* chunks from arriving, but any chunk that was already in
+      // flight when the abort fired could otherwise still land here and
+      // resume the typewriter loop. `interrupted` closes that gap.
+      let interrupted = false;
+
       return {
         // Call as raw text chunks arrive from the network.
-        pushRaw(raw){ if(!raw) return; enqueue(raw); kick(); },
+        pushRaw(raw){ if(interrupted || !raw) return; enqueue(raw); kick(); },
         // Call once with the full text for non-streamed (local) replies.
-        pushAll(text){ enqueue(text); flushCarry(); kick(); },
+        pushAll(text){ if(interrupted) return; enqueue(text); flushCarry(); kick(); },
         // Signals no more input is coming; the queue still finishes typing
         // itself out at its own pace before the returned promise resolves.
-        close(){ flushCarry(); closed = true; kick(); },
+        close(){ if(interrupted) return; flushCarry(); closed = true; kick(); },
         hasRevealedAnything(){ return wordsShown > 0 || queue.length > 0; },
-        remove(){ wrap.remove(); },
+        remove(){ interrupted = true; wrap.remove(); },
         // Immediately stops all typing, removes the bubble from DOM, and
         // resolves the promise so no dangling .whenDone.then() hangs.
         cancel(){
+          interrupted = true;
           queue.length = 0; carry = ''; closed = true; looping = false;
           doneResolve(''); // resolve once; Promise ignores subsequent calls
           wrap.remove();
@@ -5302,8 +5324,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // Halts typing and keeps the partial response visible in the chat.
         // Used when the user sends a new message mid-stream — the already-
         // typed text stays as a frozen bubble marked as "stopped", so the
-        // conversation history is never lost.
+        // conversation history is never lost. Permanently inert afterward:
+        // no later pushRaw/pushAll/close call (e.g. a chunk that was already
+        // in flight from the old, now-aborted stream) can revive it.
         freeze(){
+          interrupted = true;
           queue.length = 0; carry = ''; closed = true; looping = false;
           wrap.classList.add('is-interrupted');
           const finalRaw = bubble.textContent;
@@ -5565,6 +5590,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
       streamAssistantReply(trimmed, result.lang, result.intentId ? 'grounded' : 'general', (chunk)=>{
         // Feed each chunk straight into the typewriter the moment it arrives.
+        // Defensive guard: if a chunk from this (now-superseded) request was
+        // already in flight the instant a newer message aborted it, drop it
+        // instead of feeding a dead/frozen bubble -- belt-and-braces on top
+        // of the bubble's own `interrupted` latch and the abort itself.
+        if(activeMsgId !== myId) return;
         ensureBox().pushRaw(chunk);
       }).then(()=>{
         // One microtask tick lets any synchronous onChunk calls that arrived
