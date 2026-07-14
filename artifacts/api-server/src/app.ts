@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "path";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -30,5 +31,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// Serve the FLICO static app (index.html at workspace root) at "/".
+// This is purely for local preview — the real deployment uses Cloudflare Pages.
+// __dirname in the built file = artifacts/api-server/dist/
+// Three levels up → workspace root.
+const workspaceRoot = path.resolve(__dirname, "../../../");
+app.use(express.static(workspaceRoot, { index: "index.html" }));
 
 export default app;
