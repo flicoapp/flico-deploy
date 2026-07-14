@@ -2378,6 +2378,191 @@
   .chat-retry-btn:hover{ background:rgba(255,77,79,0.08); }
   .chat-retry-btn:active{ transform:scale(0.96); }
   .chat-retry-btn:disabled{ opacity:0.55; cursor:default; }
+
+  /* ============================================================
+     FLICO Composer — premium polish (final override layer)
+     All rules here override every earlier .chat-input-row rule.
+     Touch ONLY the composer: pill, textarea, button, icons.
+     ============================================================ */
+
+  /* ── Pill wrapper ─────────────────────────────────────────── */
+  .chat-input-row{
+    display:flex !important;
+    align-items:center !important;
+    gap:8px !important;
+    /* margin keeps it inside the panel with safe-area */
+    margin:0 14px calc(10px + env(safe-area-inset-bottom,0px)) !important;
+    /* Symmetric padding: left for text, right snug around button */
+    padding:5px 5px 5px 18px !important;
+    border-radius:999px !important;
+    background:#141414 !important;
+    box-sizing:border-box !important;
+    /* Single source of truth: one border, perfectly symmetric */
+    border:1.75px solid rgba(108,210,78,0.32) !important;
+    box-shadow:inset 0 1px 4px rgba(0,0,0,0.40) !important;
+    /* Kill earlier backdrop-filter / border-top overrides */
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+    transition:border-color .22s ease, box-shadow .22s ease !important;
+  }
+  .chat-input-row:focus-within{
+    border-color:rgba(118,220,84,0.60) !important;
+    box-shadow:inset 0 1px 4px rgba(0,0,0,0.40) !important;
+  }
+
+  /* ── Textarea ─────────────────────────────────────────────── */
+  .chat-input-row textarea{
+    flex:1 !important;
+    min-width:0 !important;
+    resize:none !important;
+    background:transparent !important;
+    border:none !important;
+    border-radius:0 !important;
+    padding:9px 0 !important;
+    margin:0 !important;
+    color:#FFFFFF !important;
+    font-family:'Inter',-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif !important;
+    font-size:14px !important;
+    line-height:1.5 !important;
+    max-height:96px !important;
+    overflow-y:auto !important;
+    outline:none !important;
+    box-shadow:none !important;
+    /* Green text cursor — the only caret style we can control cross-browser */
+    caret-color:#7CFF2B !important;
+    letter-spacing:-0.01em !important;
+  }
+  .chat-input-row textarea:focus{
+    border:none !important;
+    background:transparent !important;
+    box-shadow:none !important;
+  }
+  .chat-input-row textarea:focus-visible{
+    outline:none !important;
+    box-shadow:none !important;
+  }
+  .chat-input-row textarea::placeholder{
+    color:rgba(255,255,255,0.36) !important;
+    transition:opacity .25s ease !important;
+  }
+  .chat-input-row textarea::-webkit-scrollbar{ width:4px; }
+  .chat-input-row textarea::-webkit-scrollbar-thumb{
+    background:rgba(124,255,0,0.2);
+    border-radius:4px;
+  }
+
+  /* ── Send / Stop button ───────────────────────────────────── */
+  .chat-input-row button[type="submit"]{
+    position:relative !important;
+    width:40px !important;
+    height:40px !important;
+    min-width:40px !important;
+    flex-shrink:0 !important;
+    border-radius:50% !important;
+    border:none !important;
+    background:linear-gradient(135deg, #7CFF2B 0%, #4CD137 100%) !important;
+    cursor:pointer !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    overflow:hidden !important;
+    margin:0 !important;
+    padding:0 !important;
+    box-shadow:0 2px 8px rgba(0,0,0,0.22) !important;
+    transition:
+      transform .18s cubic-bezier(.34,1.56,.64,1),
+      box-shadow .18s ease,
+      opacity .18s ease !important;
+  }
+  .chat-input-row button[type="submit"]:hover{
+    transform:translateY(-1px) scale(1.05) !important;
+    box-shadow:0 4px 14px rgba(0,0,0,0.28) !important;
+  }
+  .chat-input-row button[type="submit"]:active{
+    transform:scale(0.91) !important;
+    box-shadow:0 1px 4px rgba(0,0,0,0.18) !important;
+    transition-duration:.08s !important;
+  }
+  .chat-input-row button[type="submit"]:disabled{
+    opacity:0.36 !important;
+    transform:none !important;
+    box-shadow:none !important;
+    cursor:not-allowed !important;
+  }
+  /* While streaming: always fully visible and clickable */
+  .chat-input-row button[type="submit"].is-streaming{
+    opacity:1 !important;
+    cursor:pointer !important;
+    pointer-events:auto !important;
+  }
+
+  /* ── Icon containers ──────────────────────────────────────── */
+  .btn-send-icon,
+  .btn-stop-icon{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    pointer-events:none;
+    transition:opacity .16s ease, transform .16s ease;
+    will-change:opacity,transform;
+  }
+  /* Default: show airplane, hide stop */
+  .btn-send-icon{ opacity:1; transform:scale(1); }
+  .btn-stop-icon{ opacity:0; transform:scale(0.65); }
+
+  /* Streaming: swap to stop icon */
+  .chat-input-row button[type="submit"].is-streaming .btn-send-icon{
+    opacity:0;
+    transform:scale(0.65);
+  }
+  .chat-input-row button[type="submit"].is-streaming .btn-stop-icon{
+    opacity:1;
+    transform:scale(1);
+  }
+
+  /* ── Send fly animation ───────────────────────────────────── */
+  @keyframes flicoSendFly{
+    0%  { opacity:1; transform:scale(1)   translate(0,0); }
+    42% { opacity:0; transform:scale(0.8) translate(3px,-8px); }
+    43% { opacity:0; transform:scale(1)   translate(0,0); }
+    100%{ opacity:1; transform:scale(1)   translate(0,0); }
+  }
+  .btn-send-icon.flico-flying{
+    animation:flicoSendFly .38s cubic-bezier(.4,0,.2,1) forwards;
+  }
+
+  /* ── Hide the legacy attach-hint placeholder ──────────────── */
+  .chat-attach-hint{ display:none !important; }
+
+  /* ── Ripple override (no colour change needed) ────────────── */
+  .chat-input-row button .btn-ripple{
+    position:absolute;
+    border-radius:50%;
+    background:rgba(0,0,0,0.22);
+    transform:scale(0);
+    opacity:0.5;
+    pointer-events:none;
+    animation:btnRipple .5s ease-out forwards;
+  }
+
+  /* ── Mobile safe-area ─────────────────────────────────────── */
+  @media (max-width:480px){
+    .chat-input-row{
+      padding-bottom:max(5px,env(safe-area-inset-bottom,5px)) !important;
+    }
+    .chat-input-row textarea{
+      font-size:16px !important; /* prevent iOS zoom */
+    }
+  }
+
+  /* ── High-contrast mode ───────────────────────────────────── */
+  @media (forced-colors:active){
+    .chat-input-row{ border:2px solid ButtonText !important; }
+    .chat-input-row button[type="submit"]{ border:2px solid ButtonText !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -5649,6 +5834,85 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       });
     }
 
+    // ── Composer streaming state: Send ↔ Stop icon swap ───────────────────
+    // Purely cosmetic — no chat logic, streaming, or API code is changed.
+    // Uses the same module-level activeStreamAbort / activeTypedBox variables
+    // that already exist in this DOMContentLoaded scope.
+    (function setupComposerState(){
+      const btn       = document.getElementById('chatSendStopBtn');
+      const sendIcon  = btn  ? btn.querySelector('.btn-send-icon')  : null;
+      const stopIcon  = btn  ? btn.querySelector('.btn-stop-icon')  : null;
+      const input     = chatInput;
+      const form      = chatForm;
+      if(!btn || !sendIcon || !stopIcon || !input || !form) return;
+
+      let streamPoll = null;
+
+      // Restore airplane and re-sync the disabled state.
+      function exitStreamingState(){
+        clearInterval(streamPoll);
+        streamPoll = null;
+        btn.classList.remove('is-streaming');
+        btn.disabled = input.value.trim().length === 0;
+        // Ensure send icon is fully reset (no stale animation class).
+        sendIcon.classList.remove('flico-flying');
+      }
+
+      // Enter streaming mode: show Stop, keep button clickable.
+      function enterStreamingState(){
+        btn.classList.add('is-streaming');
+        btn.disabled = false;
+        // Poll every 120 ms; as soon as activeStreamAbort is null the
+        // stream has finished naturally → revert to Send state.
+        clearInterval(streamPoll);
+        streamPoll = setInterval(function(){
+          if(!activeStreamAbort){
+            exitStreamingState();
+          } else {
+            // Keep the button enabled while streaming — the existing
+            // syncSendButtonState listener may re-disable it when the
+            // textarea is empty, so we re-assert on every tick.
+            btn.disabled = false;
+          }
+        }, 120);
+      }
+
+      // Trigger the fly-out animation then reset, preventing stacking.
+      function triggerSendAnimation(){
+        sendIcon.classList.remove('flico-flying');
+        // Force reflow so removing then re-adding the class restarts the animation.
+        void sendIcon.offsetWidth;
+        sendIcon.classList.add('flico-flying');
+        sendIcon.addEventListener('animationend', function handler(){
+          sendIcon.classList.remove('flico-flying');
+          sendIcon.removeEventListener('animationend', handler);
+        }, { once: true });
+      }
+
+      // Intercept form submit (capture so we run before the existing listener).
+      form.addEventListener('submit', function(){
+        // Play the send animation every time, starting clean.
+        triggerSendAnimation();
+        // Give sendMessage() a tick to register the new activeStreamAbort.
+        setTimeout(function(){
+          if(activeStreamAbort){ enterStreamingState(); }
+        }, 80);
+      }, { capture: true });
+
+      // Stop button: abort the current stream when button is clicked in
+      // streaming mode. Prevent the default submit so no new message fires.
+      btn.addEventListener('click', function(e){
+        if(!btn.classList.contains('is-streaming')) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        // Mirror what sendMessage does on interrupt, but without a new message.
+        if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
+        if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
+        exitStreamingState();
+      }, { capture: true });
+
+    })();
+
   });
 
   // ==========================================================
@@ -5798,14 +6062,21 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   <div class="chat-suggestions" id="chatSuggestions"></div>
 
   <form class="chat-input-row" id="chatForm">
-    <span class="chat-attach-hint" aria-hidden="true"></span>
     <textarea id="chatInput" rows="1" placeholder="Ask about FLICO..." autocomplete="off" aria-label="Type your question"></textarea>
-    <button type="submit" aria-label="Send message">
-      <!-- Paper airplane — Feather/Heroicons style send icon -->
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+    <button type="submit" id="chatSendStopBtn" aria-label="Send message">
+      <!-- Send icon (paper airplane) -->
+      <span class="btn-send-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M22 2L11 13" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <!-- Stop icon (shown while AI is streaming) -->
+      <span class="btn-stop-icon" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="0" y="0" width="14" height="14" rx="2.5" fill="#FFFFFF"/>
+        </svg>
+      </span>
     </button>
   </form>
 </div>
