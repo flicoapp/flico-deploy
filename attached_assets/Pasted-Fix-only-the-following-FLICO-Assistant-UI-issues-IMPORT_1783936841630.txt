@@ -1,0 +1,101 @@
+Fix only the following FLICO Assistant UI issues.
+
+IMPORTANT:
+
+• Do NOT change backend.
+• Do NOT change API.
+• Do NOT change chat logic.
+• Do NOT change streaming.
+• Do NOT change existing functionality.
+• Only refine the visual UI.
+
+==================================================
+SEND BUTTON FIX
+==================================================
+
+The send button alignment is incorrect.
+
+Fix:
+
+• Perfectly center the paper airplane icon inside the circular button.
+• Use proper flex alignment.
+• Ensure equal padding on all sides.
+• Keep the button perfectly circular.
+• Keep the icon visually balanced.
+
+Design:
+
+• White paper airplane icon.
+• FLICO green circular button background.
+• No excessive glow.
+• Subtle press animation only.
+
+The button should look like a premium modern AI app send button.
+
+==================================================
+FLICO GREEN REFINEMENT
+==================================================
+
+The current neon green is too harsh and causes eye strain.
+
+Do NOT remove the FLICO green branding.
+
+Keep the same brand identity but make it more premium.
+
+Adjust:
+
+• Reduce brightness slightly.
+• Reduce saturation slightly.
+• Remove excessive glow.
+• Use a softer premium green tone.
+• Keep strong contrast and readability.
+
+Use green for:
+
+• User message bubbles.
+• Send button background.
+• Accent elements.
+
+Avoid:
+
+• Strong fluorescent effect.
+• Heavy outer glow.
+• Bright neon everywhere.
+
+The UI should feel:
+
+Smooth.
+Premium.
+Comfortable for long conversations.
+
+==================================================
+USER CHAT BUBBLE
+==================================================
+
+Reduce the intensity of the green user bubble.
+
+Keep:
+
+• Same FLICO green identity.
+• Rounded corners.
+• Clean appearance.
+
+Change:
+
+• Less glow.
+• Softer shadow.
+• More premium flat look.
+
+==================================================
+FINAL CHECK
+==================================================
+
+The final UI should feel like:
+
+ChatGPT smoothness + WhatsApp simplicity + FLICO branding.
+
+Do not make it flashy.
+
+Make it elegant, balanced and comfortable.
+
+Test on mobile before committing and pushing changes.

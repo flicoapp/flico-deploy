@@ -1,0 +1,95 @@
+==================================================
+UPDATE MESSAGE INTERRUPTION & NETWORK HANDLING
+==================================================
+
+Improve the existing FLICO Assistant chat experience.
+
+Do NOT change the backend, API, AI model, or streaming implementation.
+
+Only improve the UI and interaction behavior.
+
+==================================================
+1. STOP RESPONSE WHEN USER SENDS A NEW MESSAGE
+==================================================
+
+If the assistant is currently generating or streaming a response and the user sends another message before it finishes:
+
+• Immediately stop the current streaming response.
+• Remove the active loading animation.
+• Cancel the current generation cleanly.
+• Start generating the new response immediately.
+• Never allow two responses to stream simultaneously.
+• Keep the chat responsive without freezing or duplicate messages.
+
+This should behave like ChatGPT, where a new prompt interrupts the current response.
+
+==================================================
+2. INTERNET CONNECTION HANDLING
+==================================================
+
+Detect network failures gracefully.
+
+If there is no internet connection or the request fails because of connectivity:
+
+Show an inline assistant error message.
+
+Appearance:
+
+• Background: Transparent
+• Text Color: #FF4D4F (soft red)
+• Font Weight: 500
+• Small warning icon on the left.
+• No popup dialog.
+• No browser alert.
+
+Message:
+
+"Unable to connect. Please check your internet connection."
+
+Below the message show a Retry button.
+
+Retry Button:
+
+• Border: 1px solid #FF4D4F
+• Text: Retry
+• Background: Transparent
+• Border Radius: 16px
+• Height: 36px
+
+When tapped:
+
+• Retry the last failed request automatically.
+• Remove the error message after a successful retry.
+
+==================================================
+3. LOADING STATE
+==================================================
+
+If Retry is pressed:
+
+• Show the FLICO loading animation again.
+• Keep the assistant avatar visible.
+• Replace the loading bubble with the streamed response once it starts.
+
+==================================================
+IMPORTANT
+==================================================
+
+Do NOT redesign the UI.
+
+Do NOT change:
+
+• Layout
+• Theme
+• Colors (except the red error message)
+• Avatar
+• Backend
+• API
+• AI model
+• Chat logic
+• Existing features
+
+Only add:
+
+• Interrupt current response when the user sends a new message.
+• Graceful internet error handling with an inline red message and a Retry button.
