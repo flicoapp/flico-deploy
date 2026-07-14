@@ -2380,9 +2380,10 @@
   .chat-retry-btn:disabled{ opacity:0.55; cursor:default; }
 
   /* ============================================================
-     FLICO Composer — premium polish (final override layer)
-     All rules here override every earlier .chat-input-row rule.
-     Touch ONLY the composer: pill, textarea, button, icons.
+     FLICO Composer v3 — final override layer
+     Fixes: border opacity (was near-invisible), stop-icon sizing,
+     send-animation reset, streaming guard. Touches ONLY the
+     composer — no layout, no chat logic, no backend.
      ============================================================ */
 
   /* ── Pill wrapper ─────────────────────────────────────────── */
@@ -2390,24 +2391,25 @@
     display:flex !important;
     align-items:center !important;
     gap:8px !important;
-    /* margin keeps it inside the panel with safe-area */
     margin:0 14px calc(10px + env(safe-area-inset-bottom,0px)) !important;
-    /* Symmetric padding: left for text, right snug around button */
     padding:5px 5px 5px 18px !important;
     border-radius:999px !important;
     background:#141414 !important;
     box-sizing:border-box !important;
-    /* Single source of truth: one border, perfectly symmetric */
-    border:1.75px solid rgba(108,210,78,0.32) !important;
-    box-shadow:inset 0 1px 4px rgba(0,0,0,0.40) !important;
-    /* Kill earlier backdrop-filter / border-top overrides */
+    /* Clearly visible soft-green border — 0.58 opacity is readable
+       against #141414 without looking neon.                       */
+    border:1.75px solid rgba(100,210,70,0.58) !important;
+    /* Subtle inner shadow adds depth without a second border       */
+    box-shadow:inset 0 1px 3px rgba(0,0,0,0.45) !important;
     backdrop-filter:none !important;
     -webkit-backdrop-filter:none !important;
-    transition:border-color .22s ease, box-shadow .22s ease !important;
+    transition:border-color .2s ease, box-shadow .2s ease !important;
   }
+  /* Brighten border on focus — still soft, not neon               */
   .chat-input-row:focus-within{
-    border-color:rgba(118,220,84,0.60) !important;
-    box-shadow:inset 0 1px 4px rgba(0,0,0,0.40) !important;
+    border-color:rgba(110,225,78,0.82) !important;
+    box-shadow:inset 0 1px 3px rgba(0,0,0,0.45),
+               0 0 0 2.5px rgba(100,210,70,0.10) !important;
   }
 
   /* ── Textarea ─────────────────────────────────────────────── */
@@ -2416,19 +2418,20 @@
     min-width:0 !important;
     resize:none !important;
     background:transparent !important;
-    border:none !important;
+    border:none !important;          /* pill owns the only border  */
     border-radius:0 !important;
     padding:9px 0 !important;
     margin:0 !important;
     color:#FFFFFF !important;
-    font-family:'Inter',-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif !important;
+    font-family:'Inter',-apple-system,'Segoe UI',Roboto,
+                'Helvetica Neue',Arial,sans-serif !important;
     font-size:14px !important;
     line-height:1.5 !important;
     max-height:96px !important;
     overflow-y:auto !important;
     outline:none !important;
     box-shadow:none !important;
-    /* Green text cursor — the only caret style we can control cross-browser */
+    /* Native text cursor color — matches reference image exactly  */
     caret-color:#7CFF2B !important;
     letter-spacing:-0.01em !important;
   }
@@ -2442,12 +2445,11 @@
     box-shadow:none !important;
   }
   .chat-input-row textarea::placeholder{
-    color:rgba(255,255,255,0.36) !important;
-    transition:opacity .25s ease !important;
+    color:rgba(255,255,255,0.38) !important;
   }
   .chat-input-row textarea::-webkit-scrollbar{ width:4px; }
   .chat-input-row textarea::-webkit-scrollbar-thumb{
-    background:rgba(124,255,0,0.2);
+    background:rgba(124,255,0,0.22);
     border-radius:4px;
   }
 
@@ -2460,7 +2462,7 @@
     flex-shrink:0 !important;
     border-radius:50% !important;
     border:none !important;
-    background:linear-gradient(135deg, #7CFF2B 0%, #4CD137 100%) !important;
+    background:linear-gradient(135deg,#7CFF2B 0%,#4CD137 100%) !important;
     cursor:pointer !important;
     display:flex !important;
     align-items:center !important;
@@ -2468,35 +2470,37 @@
     overflow:hidden !important;
     margin:0 !important;
     padding:0 !important;
-    box-shadow:0 2px 8px rgba(0,0,0,0.22) !important;
+    box-shadow:0 2px 8px rgba(0,0,0,0.25) !important;
     transition:
       transform .18s cubic-bezier(.34,1.56,.64,1),
       box-shadow .18s ease,
-      opacity .18s ease !important;
+      opacity    .18s ease !important;
   }
-  .chat-input-row button[type="submit"]:hover{
+  .chat-input-row button[type="submit"]:hover:not(:disabled){
     transform:translateY(-1px) scale(1.05) !important;
-    box-shadow:0 4px 14px rgba(0,0,0,0.28) !important;
+    box-shadow:0 4px 14px rgba(0,0,0,0.30) !important;
   }
-  .chat-input-row button[type="submit"]:active{
+  .chat-input-row button[type="submit"]:active:not(:disabled){
     transform:scale(0.91) !important;
     box-shadow:0 1px 4px rgba(0,0,0,0.18) !important;
     transition-duration:.08s !important;
   }
   .chat-input-row button[type="submit"]:disabled{
-    opacity:0.36 !important;
+    opacity:0.35 !important;
     transform:none !important;
     box-shadow:none !important;
     cursor:not-allowed !important;
   }
-  /* While streaming: always fully visible and clickable */
+  /* While streaming: always opaque and clickable regardless of
+     whether syncSendButtonState disabled it on the empty textarea */
   .chat-input-row button[type="submit"].is-streaming{
     opacity:1 !important;
     cursor:pointer !important;
     pointer-events:auto !important;
+    disabled:false !important;       /* belt-and-braces via CSS   */
   }
 
-  /* ── Icon containers ──────────────────────────────────────── */
+  /* ── Icon layers (both live inside the button absolutely) ──── */
   .btn-send-icon,
   .btn-stop-icon{
     position:absolute;
@@ -2505,42 +2509,48 @@
     align-items:center;
     justify-content:center;
     pointer-events:none;
-    transition:opacity .16s ease, transform .16s ease;
+    /* 170 ms fade+scale — feels snappy without being jarring     */
+    transition:opacity .17s ease, transform .17s ease;
     will-change:opacity,transform;
   }
-  /* Default: show airplane, hide stop */
-  .btn-send-icon{ opacity:1; transform:scale(1); }
-  .btn-stop-icon{ opacity:0; transform:scale(0.65); }
+  /* Resting state: airplane visible, stop hidden                  */
+  .btn-send-icon{ opacity:1; transform:scale(1);    }
+  .btn-stop-icon{ opacity:0; transform:scale(0.60); }
 
-  /* Streaming: swap to stop icon */
+  /* Streaming state: stop visible, airplane hidden                */
   .chat-input-row button[type="submit"].is-streaming .btn-send-icon{
     opacity:0;
-    transform:scale(0.65);
+    transform:scale(0.60);
   }
   .chat-input-row button[type="submit"].is-streaming .btn-stop-icon{
     opacity:1;
     transform:scale(1);
   }
 
-  /* ── Send fly animation ───────────────────────────────────── */
+  /* ── Send fly-out animation ───────────────────────────────── */
+  /* Keyframe: plane flies up-right, snaps back to centre, then
+     fades in again — all in one continuous pass.               */
   @keyframes flicoSendFly{
-    0%  { opacity:1; transform:scale(1)   translate(0,0); }
-    42% { opacity:0; transform:scale(0.8) translate(3px,-8px); }
-    43% { opacity:0; transform:scale(1)   translate(0,0); }
-    100%{ opacity:1; transform:scale(1)   translate(0,0); }
+    0%  { opacity:1; transform:translate(0,0)    scale(1);    }
+    40% { opacity:0; transform:translate(4px,-9px) scale(0.78); }
+    41% { opacity:0; transform:translate(0,0)    scale(1);    }
+    100%{ opacity:1; transform:translate(0,0)    scale(1);    }
   }
+  /* Class added by JS on submit; removed on animationend.
+     JS clears this class before entering streaming state so the
+     fly-out and the fade-to-stop never overlap.                 */
   .btn-send-icon.flico-flying{
-    animation:flicoSendFly .38s cubic-bezier(.4,0,.2,1) forwards;
+    animation:flicoSendFly .36s cubic-bezier(.4,0,.2,1) forwards;
   }
 
-  /* ── Hide the legacy attach-hint placeholder ──────────────── */
+  /* ── Legacy attach-hint (empty placeholder span) ──────────── */
   .chat-attach-hint{ display:none !important; }
 
-  /* ── Ripple override (no colour change needed) ────────────── */
+  /* ── Ripple (keeps working on the green button) ────────────── */
   .chat-input-row button .btn-ripple{
     position:absolute;
     border-radius:50%;
-    background:rgba(0,0,0,0.22);
+    background:rgba(0,0,0,0.20);
     transform:scale(0);
     opacity:0.5;
     pointer-events:none;
@@ -2552,15 +2562,19 @@
     .chat-input-row{
       padding-bottom:max(5px,env(safe-area-inset-bottom,5px)) !important;
     }
-    .chat-input-row textarea{
-      font-size:16px !important; /* prevent iOS zoom */
-    }
+    .chat-input-row textarea{ font-size:16px !important; }
   }
 
-  /* ── High-contrast mode ───────────────────────────────────── */
+  /* ── High-contrast accessibility ──────────────────────────── */
   @media (forced-colors:active){
     .chat-input-row{ border:2px solid ButtonText !important; }
     .chat-input-row button[type="submit"]{ border:2px solid ButtonText !important; }
+  }
+
+  /* ── Reduced-motion: skip animations ──────────────────────── */
+  @media (prefers-reduced-motion:reduce){
+    .btn-send-icon.flico-flying{ animation:none !important; }
+    .btn-send-icon, .btn-stop-icon{ transition:none !important; }
   }
 
 </style>
@@ -5894,8 +5908,15 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // Play the send animation every time, starting clean.
         triggerSendAnimation();
         // Give sendMessage() a tick to register the new activeStreamAbort.
+        // activeStreamAbort is set synchronously at the top of
+        // streamAssistantReply(), so 80 ms is more than enough.
         setTimeout(function(){
-          if(activeStreamAbort){ enterStreamingState(); }
+          if(activeStreamAbort){
+            // Cancel the fly animation before adding is-streaming so
+            // the fly-out and the fade-to-stop never fight each other.
+            sendIcon.classList.remove('flico-flying');
+            enterStreamingState();
+          }
         }, 80);
       }, { capture: true });
 
