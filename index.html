@@ -2395,9 +2395,9 @@
     align-items:center !important;
     gap:8px !important;
     width:auto !important;
-    height:74px !important;
+    height:64px !important;
     margin:0 16px calc(16px + env(safe-area-inset-bottom,0px)) !important;
-    padding:0 8px !important;
+    padding:6px 14px !important;
     border-radius:999px !important;
     background:#111111 !important;
     box-sizing:border-box !important;
@@ -2418,8 +2418,8 @@
     min-width:0 !important;
     display:flex !important;
     align-items:center !important;
-    height:58px !important;
-    padding:0 20px !important;
+    height:50px !important;
+    padding:0 16px !important;
     border-radius:999px !important;
     background:#171717 !important;
     box-sizing:border-box !important;
@@ -2478,9 +2478,9 @@
   /* ── Send / Stop button ───────────────────────────────────── */
   .chat-input-row button[type="submit"]{
     position:relative !important;
-    width:64px !important;
-    height:64px !important;
-    min-width:64px !important;
+    width:52px !important;
+    height:52px !important;
+    min-width:52px !important;
     flex-shrink:0 !important;
     border-radius:50% !important;
     border:none !important;
@@ -5892,33 +5892,42 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         btn.disabled = input.value.trim().length === 0;
       }
 
-      // On every submit, start watching for an active response.
-      // Handles BOTH routes:
+      // On every submit, show Stop *immediately* — like ChatGPT, the button
+      // must flip the instant the user hits Send/Enter, not once the network
+      // request or local "thinking" delay happens to produce something to
+      // point at. This also means Stop is clickable (and correctly cancels
+      // the pending reply via the activeMsgId bump below) during the local
+      // KB route's ~450–1150 ms "thinking" pause, before activeTypedBox
+      // even exists yet.
+      //
+      // The poll then just watches for the natural end of generation so it
+      // can revert to Send on its own — it no longer decides when to show
+      // Stop in the first place. Handles BOTH routes:
       //   • Gemini / API  → activeStreamAbort is set within ~1 tick
       //   • Local KB      → activeStreamAbort stays null but activeTypedBox
       //                      is set after the thinkDelay (~450–1150 ms)
-      // The poll runs every 80 ms and gives up after 3 s if nothing fires.
       form.addEventListener('submit', function(){
         clearInterval(poll);
-        let everActive = false; // true once we've seen any active state
-        let idleTicks  = 0;     // ticks elapsed with nothing active yet
-        const MAX_IDLE = 38;    // 38 × 80 ms ≈ 3 s maximum wait
+        btn.classList.add('is-streaming');
+        btn.disabled = false;
+
+        let sawActive  = false; // true once activeStreamAbort/activeTypedBox actually appears
+        let idleTicks  = 0;     // ticks elapsed since submit with nothing active yet
+        const MAX_IDLE = 38;    // 38 × 80 ms ≈ 3 s maximum wait before giving up
 
         poll = setInterval(function(){
           const active = !!(activeStreamAbort || activeTypedBox);
 
           if(active){
-            everActive = true;
-            idleTicks  = 0;
-            // Show Stop button and keep it enabled.
-            btn.classList.add('is-streaming');
-            btn.disabled = false;
-          } else if(everActive){
+            sawActive = true;
+            idleTicks = 0;
+          } else if(sawActive){
             // Was active, now genuinely finished — revert immediately.
             revertToSend();
           } else if(++idleTicks >= MAX_IDLE){
-            // Never became active within 3 s — nothing to track.
-            clearInterval(poll); poll = null;
+            // Never became active within 3 s (e.g. sendMessage() bailed out
+            // on an empty/whitespace string) — nothing to track, revert.
+            revertToSend();
           }
         }, 80);
       }, { capture: true });
