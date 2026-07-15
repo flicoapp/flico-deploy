@@ -2594,6 +2594,256 @@
     .btn-send-icon, .btn-stop-icon{ transition:none !important; }
   }
 
+
+  /* ============================================================
+     FLICO Chat — Reference UI v1
+     ChatGPT-style layout: assistant replies as plain text on the
+     dark background (no bubble), glassmorphism user bubble,
+     #0B0B0B panel, updated send-button gradient.
+     All rules use !important to win every prior layer cleanly.
+     Touches ONLY the chat surface — no backend, no JS logic.
+     ============================================================ */
+
+  /* ── Panel ───────────────────────────────────────────────── */
+  .chat-panel{
+    background:#0B0B0B !important;
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+    border:1px solid rgba(255,255,255,0.06) !important;
+    box-shadow:0 20px 60px rgba(0,0,0,0.70) !important;
+  }
+  .chat-panel::before{ display:none !important; }
+  .chat-panel-bg{ display:none !important; }
+
+  .chat-header{
+    background:#0B0B0B !important;
+    border-bottom:1px solid rgba(255,255,255,0.06) !important;
+    padding:14px 16px !important;
+  }
+
+  .chat-messages{
+    background:transparent !important;
+    padding:20px 16px 8px !important;
+    gap:20px !important;
+  }
+
+  /* ── Message wraps ───────────────────────────────────────── */
+  .chat-msg-wrap.bot{
+    max-width:78% !important;
+    align-self:flex-start !important;
+    align-items:flex-start !important;
+  }
+  .chat-msg-wrap.user{
+    max-width:72% !important;
+    align-self:flex-end !important;
+    align-items:flex-end !important;
+  }
+  /* Timestamp indent under avatar */
+  .chat-msg-wrap.bot .chat-time{
+    margin-left:40px !important;
+    color:#606060 !important;
+  }
+  .chat-msg-wrap.user .chat-time{
+    color:#606060 !important;
+  }
+
+  /* ── Assistant message — no bubble, plain text ───────────── */
+  .chat-msg.bot{
+    background:transparent !important;
+    border:none !important;
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+    box-shadow:none !important;
+    padding:0 !important;
+    border-radius:0 !important;
+    color:#F5F5F5 !important;
+    font-weight:400 !important;
+    line-height:1.65 !important;
+    font-size:14.5px !important;
+    max-width:100% !important;
+  }
+  .chat-msg.bot:hover{
+    background:transparent !important;
+  }
+  /* All inline markdown elements */
+  .chat-msg.bot p{
+    margin:0 0 10px !important;
+    color:#F5F5F5 !important;
+    font-weight:400 !important;
+    line-height:1.65 !important;
+  }
+  .chat-msg.bot p:last-child{ margin-bottom:0 !important; }
+  .chat-msg.bot > *:not(:first-child){ margin-top:0 !important; }
+  .chat-msg.bot ul,
+  .chat-msg.bot ol{
+    margin:0 0 10px !important;
+    padding-left:20px !important;
+    color:#F5F5F5 !important;
+  }
+  .chat-msg.bot ul:last-child,
+  .chat-msg.bot ol:last-child{ margin-bottom:0 !important; }
+  .chat-msg.bot li{
+    margin-bottom:5px !important;
+    line-height:1.65 !important;
+    color:#F5F5F5 !important;
+  }
+  .chat-msg.bot li:last-child{ margin-bottom:0 !important; }
+  .chat-msg.bot strong{
+    color:#FFFFFF !important;
+    font-weight:600 !important;
+  }
+  .chat-msg.bot em{
+    color:#E0E0E0 !important;
+    font-style:italic !important;
+  }
+  .chat-msg.bot .md-h{
+    display:block !important;
+    font-weight:600 !important;
+    font-size:14px !important;
+    color:#FFFFFF !important;
+    margin:0 0 8px !important;
+    line-height:1.4 !important;
+  }
+  .chat-msg.bot code{
+    background:rgba(255,255,255,0.08) !important;
+    border:1px solid rgba(255,255,255,0.10) !important;
+    border-radius:5px !important;
+    padding:1px 5px !important;
+    font-size:12.5px !important;
+    color:#C8E6A0 !important;
+  }
+  /* Interrupted bot message — subtle fade */
+  .chat-msg-wrap.is-interrupted .chat-msg.bot{
+    opacity:0.72 !important;
+  }
+
+  /* ── User message — glassmorphism ────────────────────────── */
+  .chat-msg.user{
+    background:rgba(126,200,65,0.16) !important;
+    backdrop-filter:blur(16px) !important;
+    -webkit-backdrop-filter:blur(16px) !important;
+    border:1px solid rgba(126,200,65,0.28) !important;
+    box-shadow:0 10px 30px rgba(0,0,0,0.18) !important;
+    color:#FFFFFF !important;
+    border-radius:24px !important;
+    border-bottom-right-radius:8px !important;
+    font-weight:400 !important;
+    font-size:14.5px !important;
+    line-height:1.55 !important;
+    padding:12px 16px !important;
+    letter-spacing:0 !important;
+    max-width:100% !important;
+  }
+
+  /* ── Avatar next to bot message ──────────────────────────── */
+  .chat-msg-row{
+    gap:12px !important;
+  }
+  .chat-msg-avatar{
+    width:32px !important;
+    height:32px !important;
+    min-width:32px !important;
+    border-radius:50% !important;
+    background-color:#141414 !important;
+    border:1px solid rgba(126,200,65,0.22) !important;
+    box-shadow:none !important;
+    filter:none !important;
+  }
+  /* Grouped messages — no avatar repeat, indent instead */
+  .chat-msg-row.is-grouped{
+    padding-left:44px !important;
+  }
+
+  /* ── Typing indicator ────────────────────────────────────── */
+  .chat-typing{
+    background:transparent !important;
+    border:none !important;
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+    box-shadow:none !important;
+    padding:4px 0 !important;
+    border-radius:0 !important;
+    color:#A3A3A3 !important;
+  }
+
+  /* ── Suggestion cards ────────────────────────────────────── */
+  .chat-card{
+    background:#111111 !important;
+    border:1px solid rgba(255,255,255,0.07) !important;
+    box-shadow:none !important;
+    backdrop-filter:none !important;
+  }
+  .chat-card:hover, .chat-card:focus-visible{
+    background:#171717 !important;
+    border-color:rgba(126,200,65,0.35) !important;
+    box-shadow:none !important;
+  }
+
+  /* ── Send / Stop button — updated gradient ───────────────── */
+  .chat-input-row button[type="submit"]{
+    width:52px !important;
+    height:52px !important;
+    min-width:52px !important;
+    background:linear-gradient(135deg,#8BEA38 0%,#6FCB2D 100%) !important;
+    box-shadow:0 4px 14px rgba(111,203,45,0.30) !important;
+  }
+  .chat-input-row button[type="submit"]:hover:not(:disabled){
+    box-shadow:0 6px 20px rgba(139,234,56,0.40) !important;
+  }
+  /* Keep stop-icon (is-streaming) overrides working */
+  .chat-input-row button[type="submit"].is-streaming{
+    background:linear-gradient(135deg,#8BEA38 0%,#6FCB2D 100%) !important;
+  }
+
+  /* ── Input pill ──────────────────────────────────────────── */
+  .chat-input-row{
+    background:#111111 !important;
+    border:1px solid rgba(126,200,65,0.30) !important;
+    box-shadow:
+      inset 0 0 0 1px rgba(126,200,65,0.10),
+      inset 0 1px 3px rgba(0,0,0,0.40) !important;
+  }
+  .chat-input-row:focus-within{
+    border-color:rgba(126,200,65,0.55) !important;
+    box-shadow:
+      inset 0 0 0 1px rgba(126,200,65,0.20),
+      inset 0 1px 3px rgba(0,0,0,0.40),
+      0 0 0 2px rgba(126,200,65,0.08) !important;
+  }
+  .chat-input-row textarea::placeholder{
+    color:#8E8E8E !important;
+    font-size:16px !important;
+    font-weight:400 !important;
+  }
+
+  /* ── Timestamp ───────────────────────────────────────────── */
+  .chat-time{
+    font-size:10px !important;
+    color:#505050 !important;
+    margin-top:6px !important;
+  }
+
+  /* ── Message enter animation ─────────────────────────────── */
+  @keyframes msgInRef{
+    from{ opacity:0; transform:translateY(6px); }
+    to{   opacity:1; transform:translateY(0);   }
+  }
+  .chat-msg{
+    animation:msgInRef 0.20s ease-out both !important;
+  }
+
+  /* ── Mobile safe-area ────────────────────────────────────── */
+  @media (max-width:480px){
+    .chat-msg-wrap.bot,
+    .chat-msg-wrap.user{ max-width:90% !important; }
+    .chat-messages{ padding:16px 12px 8px !important; }
+  }
+
+  /* ── Reduced motion ──────────────────────────────────────── */
+  @media (prefers-reduced-motion:reduce){
+    .chat-msg{ animation:none !important; }
+  }
+
 </style>
 </head>
 <body>
