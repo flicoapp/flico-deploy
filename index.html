@@ -2897,6 +2897,77 @@
   .btn-send-icon svg,
   .btn-stop-icon svg{ width:18px !important; height:18px !important; }
 
+  /* ============================================================
+     FLICO Chat — Copy-message button
+     Minimal icon-only affordance under each finished assistant
+     message, right-aligned beneath the bubble. No layout impact
+     on bubbles/avatars/timestamps -- purely an added sibling.
+     ============================================================ */
+  .chat-copy-btn{
+    position:relative;
+    align-self:flex-end;
+    width:26px;
+    height:26px;
+    margin-top:2px;
+    padding:0;
+    border:none;
+    border-radius:6px;
+    background:transparent;
+    color:#8A8A8A;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    opacity:0.55;
+    transition:opacity .15s ease-in-out, background-color .15s ease-in-out, color .15s ease-in-out;
+  }
+  .chat-msg-wrap.bot .chat-copy-btn{ margin-left:40px; } /* clears the avatar column, same offset as .chat-time */
+  .chat-copy-btn:hover,
+  .chat-copy-btn:focus-visible{
+    opacity:1;
+    background:rgba(255,255,255,0.07);
+    color:#FFFFFF;
+    outline:none;
+  }
+  .chat-copy-btn:active{ transform:scale(0.93); }
+  .chat-copy-icon,
+  .chat-copy-check{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    opacity:1;
+    transition:opacity .15s ease-in-out;
+  }
+  .chat-copy-icon svg,
+  .chat-copy-check svg{ width:14px; height:14px; }
+  .chat-copy-check{ opacity:0; color:#7EC841; }
+  .chat-copy-btn.is-copied .chat-copy-icon{ opacity:0; }
+  .chat-copy-btn.is-copied .chat-copy-check{ opacity:1; }
+  .chat-copy-label{
+    position:absolute;
+    right:100%;
+    top:50%;
+    transform:translateY(-50%);
+    margin-right:6px;
+    font-size:11px;
+    font-weight:500;
+    color:#8A8A8A;
+    white-space:nowrap;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .15s ease-in-out;
+  }
+  .chat-copy-btn.is-copied .chat-copy-label{ opacity:1; }
+  @media (hover:none){
+    /* No hover on touch -- keep it subtle but tappable without a hover state. */
+    .chat-copy-btn{ opacity:0.65; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .chat-copy-icon, .chat-copy-check, .chat-copy-label, .chat-copy-btn{ transition:none !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -5440,23 +5511,98 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       chatMessages.appendChild(sep);
     }
 
+    // ── Auto-scroll follow state ──────────────────────────────────────────
+    // true while the view should keep tracking new content; flipped to
+    // false the moment the user scrolls away from the bottom, and back to
+    // true once they scroll back within the threshold. Purely a scroll-
+    // position observation -- no chat/streaming logic involved.
+    let chatFollowBottom = true;
+    const CHAT_BOTTOM_THRESHOLD = 80;
+    chatMessages.addEventListener('scroll', function(){
+      const distFromBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight;
+      chatFollowBottom = distFromBottom < CHAT_BOTTOM_THRESHOLD;
+    }, { passive: true });
+
     // One RAF handle shared across all typewriter scroll requests.
     // Coalesces all per-word scroll calls into a single paint frame.
     let _scrollRaf = 0;
     function scrollToBottom(smooth){
       if(!smooth){
-        // Explicit snap: runs immediately (open chat, user sends, typing indicator).
+        // Explicit snap: runs immediately (open chat, user sends, typing indicator,
+        // new assistant response starting). Always resumes following.
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        chatFollowBottom = true;
         return;
       }
-      // Typewriter path: batch via RAF, skip if a frame is already queued.
+      // Typewriter/streaming path: batch via RAF, skip if a frame is already queued.
       if(_scrollRaf) return;
       _scrollRaf = requestAnimationFrame(function(){
         _scrollRaf = 0;
-        // Skip auto-scroll if the user has manually scrolled up more than 120px.
-        const distFromBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight;
-        if(distFromBottom < 120) chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Only keep following if the user hasn't scrolled away from the bottom.
+        if(chatFollowBottom) chatMessages.scrollTop = chatMessages.scrollHeight;
       });
+    }
+
+    // ── Copy-to-clipboard button for assistant messages ───────────────────
+    // Icon-only, subtle, appears once a reply is fully (or permanently)
+    // finished. Copies the raw reply text -- line breaks and markdown list
+    // markers stay intact as plain-text characters, exactly as authored.
+    function copySvgIcon(){
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="9" y="9" width="12" height="12" rx="2"/>' +
+        '<path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>' +
+        '</svg>';
+    }
+    function checkSvgIcon(){
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<polyline points="20 6 9 17 4 12"/>' +
+        '</svg>';
+    }
+    function legacyCopyText(text){
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try{ document.execCommand('copy'); } catch(e){ /* no-op: nothing else we can do */ }
+      document.body.removeChild(ta);
+    }
+    function createCopyButton(getText){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chat-copy-btn';
+      btn.setAttribute('aria-label', 'Copy message');
+      btn.innerHTML =
+        '<span class="chat-copy-icon" aria-hidden="true">' + copySvgIcon() + '</span>' +
+        '<span class="chat-copy-check" aria-hidden="true">' + checkSvgIcon() + '</span>' +
+        '<span class="chat-copy-label" aria-hidden="true">Copied</span>';
+      let resetTimer = null;
+      btn.addEventListener('click', function(){
+        const text = getText();
+        if(!text) return;
+        const showCopied = function(){
+          clearTimeout(resetTimer);
+          btn.classList.add('is-copied');
+          btn.setAttribute('aria-label', 'Copied');
+          resetTimer = setTimeout(function(){
+            btn.classList.remove('is-copied');
+            btn.setAttribute('aria-label', 'Copy message');
+          }, 2000);
+        };
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(showCopied).catch(function(){
+            legacyCopyText(text);
+            showCopied();
+          });
+        } else {
+          legacyCopyText(text);
+          showCopied();
+        }
+      });
+      return btn;
     }
 
     function renderMessage(role, text, time, animate){
@@ -5497,9 +5643,15 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       // Assemble off-DOM, then do a single appendChild to trigger one reflow.
       wrap.appendChild(row);
       wrap.appendChild(stamp);
+      if(role !== 'user'){
+        // Already fully formed text (history restore) — copy button shows
+        // immediately, there's no "still generating" state to wait out.
+        wrap.appendChild(createCopyButton(function(){ return text; }));
+      }
       chatMessages.appendChild(wrap);
       // Instant snap — the user just sent or we're restoring history.
       chatMessages.scrollTop = chatMessages.scrollHeight;
+      chatFollowBottom = true;
     }
 
     // ==========================================================
@@ -5637,6 +5789,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
               const finalRaw = bubble.textContent;
               bubble.innerHTML = formatMarkdown(finalRaw);
               stamp.textContent = formatTime();
+              // Generation is fully done -- reveal the copy button now,
+              // not a moment sooner.
+              if(!wrap.querySelector('.chat-copy-btn')){
+                wrap.appendChild(createCopyButton(function(){ return finalRaw; }));
+              }
               scrollToBottom(true);
               doneResolve(finalRaw);
             });
@@ -5703,6 +5860,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           bubble.innerHTML = formatMarkdown(finalRaw);
           // Set timestamp now; the next step()/RAF may set it again — harmless.
           if(!stamp.textContent) stamp.textContent = formatTime();
+          // Stopped early still counts as "done generating" -- show the
+          // copy button for whatever text made it onto the screen.
+          if(finalRaw && !wrap.querySelector('.chat-copy-btn')){
+            wrap.appendChild(createCopyButton(function(){ return finalRaw; }));
+          }
           doneResolve(finalRaw); // resolve so no .whenDone.then() hangs
         },
         // Resolves with the final text once every queued word has been shown.
