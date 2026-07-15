@@ -6409,11 +6409,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       composerStartStreaming = startStreaming;
       composerStopStreaming  = stopStreaming;
 
-      // Stop click: cancel everything right now, no delay.
-      btn.addEventListener('click', function(e){
+      // Shared stop logic — called from both pointerdown and click so the
+      // logic never runs twice (revertToSend removes is-streaming, so the
+      // second caller's guard returns immediately).
+      function doStop(){
         if(!btn.classList.contains('is-streaming')) return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
         // Bump activeMsgId so every pending async continuation in
         // attemptAssistantReply (chunk callback, runFallback,
         // handleNetworkFailure, the .then() completion branch) sees
@@ -6431,6 +6431,30 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         removeTypingIndicator();
         removeActiveNetworkError();
         revertToSend();
+      }
+
+      // PRIMARY Stop handler — pointerdown fires even when the button carries
+      // the HTML `disabled` attribute, which the browser sets via
+      // syncSendButtonState when the textarea is empty. CSS
+      // `pointer-events:auto` makes the button *look* clickable but cannot
+      // override `disabled` for JS click-event dispatch; pointerdown has no
+      // such restriction. Calling preventDefault() here also cancels the
+      // subsequent click event (and therefore the form submit) in all modern
+      // browsers, so the existing click guard below is just belt-and-braces.
+      btn.addEventListener('pointerdown', function(e){
+        if(!btn.classList.contains('is-streaming')) return;
+        e.preventDefault(); // cancels the follow-up click / form submit
+        doStop();
+      });
+
+      // SECONDARY Stop handler (click, capture phase) — fires when the button
+      // is not disabled and pointerdown's preventDefault did not suppress click.
+      // The doStop() guard means it is always a no-op if pointerdown already ran.
+      btn.addEventListener('click', function(e){
+        if(!btn.classList.contains('is-streaming')) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        doStop();
       }, { capture: true });
 
     })();
