@@ -2416,24 +2416,25 @@
     box-shadow:0 0 12px rgba(120,200,65,0.10) !important;
   }
 
-  /* ── Inner input pill ─────────────────────────────────────── */
+  /* ── Inner floating outline ──────────────────────────────── */
   .chat-input-inner{
     flex:1 1 auto !important;
     min-width:0 !important;
     display:flex !important;
     align-items:center !important;
-    height:50px !important;
-    padding:0 16px !important;
-    border-radius:999px !important;
-    background:#171717 !important;
+    height:42px !important;
+    margin-left:9px !important;
+    padding:0 10px 0 18px !important;
+    border-radius:28px !important;
+    background:rgba(255,255,255,0.015) !important;
     box-sizing:border-box !important;
-    border:1.5px solid rgba(120,200,65,0.16) !important;
-    box-shadow:none !important;
-    transition:border-color .2s ease !important;
+    border:1.5px solid rgba(124,255,41,0.18) !important;
+    box-shadow:inset 0 0 10px rgba(124,255,41,0.05) !important;
+    transition:all 220ms ease !important;
   }
   .chat-input-inner:focus-within{
-    border-color:rgba(120,200,65,0.30) !important;
-    box-shadow:none !important;
+    border-color:rgba(124,255,41,0.32) !important;
+    box-shadow:inset 0 0 14px rgba(124,255,41,0.08) !important;
   }
 
   /* ── Textarea ─────────────────────────────────────────────── */
@@ -2862,15 +2863,18 @@
     box-shadow:0 10px 30px rgba(0,0,0,.22) !important;
   }
   .chat-input-inner{
-    height:48px !important;
+    height:42px !important;
+    margin-left:9px !important;
     padding:0 10px 0 18px !important;
-    background:transparent !important;
-    border:1.5px solid rgba(123,203,66,0.18) !important;
-    box-shadow:none !important;
+    border-radius:28px !important;
+    background:rgba(255,255,255,0.015) !important;
+    border:1.5px solid rgba(124,255,41,0.18) !important;
+    box-shadow:inset 0 0 10px rgba(124,255,41,0.05) !important;
+    transition:all 220ms ease !important;
   }
   .chat-input-inner:focus-within{
-    border-color:rgba(123,203,66,0.32) !important;
-    box-shadow:none !important;
+    border-color:rgba(124,255,41,0.32) !important;
+    box-shadow:inset 0 0 14px rgba(124,255,41,0.08) !important;
   }
   .chat-input-row textarea::placeholder{
     color:#8E8E8E !important;
