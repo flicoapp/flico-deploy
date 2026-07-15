@@ -2972,6 +2972,93 @@
     .chat-copy-icon, .chat-copy-check, .chat-copy-label, .chat-copy-btn{ transition:none !important; }
   }
 
+  /* ============================================================
+     FLICO — Auto-expand input (up to 6 lines) + scroll-to-bottom
+     Final cascade override — no streaming/backend code touched.
+     ============================================================ */
+
+  /* Remove fixed heights so both bars grow together with the textarea.
+     padding:7px 0 on the outer keeps ~7-10px clearance around the
+     inner border at every size. */
+  .chat-input-row{
+    height:auto !important;
+    min-height:62px !important;
+    padding:7px 0 !important;
+    align-items:center !important;
+  }
+  /* Inner border: vertical padding centres the textarea at one line
+     (9+24+9=42px) and adds breathing room as it grows. */
+  .chat-input-inner{
+    height:auto !important;
+    min-height:42px !important;
+    padding:9px 10px 9px 18px !important;
+    align-items:center !important;
+  }
+  /* Textarea grows up to 6 lines then scrolls internally. */
+  .chat-input-row textarea{
+    max-height:144px !important;
+    overflow-y:auto !important;
+    align-self:center !important;
+  }
+  /* Send / Stop button stays vertically centred regardless of how
+     tall the composer bar grows. */
+  .chat-input-row button[type="submit"]{
+    align-self:center !important;
+    flex-shrink:0 !important;
+  }
+
+  /* ── Scroll-to-bottom floating button ────────────────────── */
+  .chat-scroll-bottom-wrap{
+    position:relative !important;
+    height:0 !important;
+    overflow:visible !important;
+    flex-shrink:0 !important;
+    pointer-events:none !important;
+    z-index:10;
+  }
+  .chat-scroll-btn{
+    position:absolute;
+    bottom:10px;
+    left:50%;
+    transform:translateX(-50%) translateY(6px);
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    border:1px solid rgba(255,255,255,0.10);
+    background:rgba(18,18,18,0.94);
+    color:rgba(255,255,255,0.60);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .18s ease, transform .18s ease,
+                border-color .15s ease, color .15s ease;
+    box-shadow:0 2px 10px rgba(0,0,0,.55);
+  }
+  .chat-scroll-btn.is-visible{
+    opacity:1;
+    pointer-events:auto;
+    transform:translateX(-50%) translateY(0);
+  }
+  .chat-scroll-btn:hover{
+    border-color:rgba(120,200,65,0.35);
+    color:#78C841;
+    background:rgba(24,24,24,0.98);
+  }
+  .chat-scroll-btn:active{
+    transform:translateX(-50%) scale(0.91) !important;
+    transition-duration:.06s !important;
+  }
+  @media (max-width:480px){
+    .chat-scroll-btn{ width:32px; height:32px; bottom:8px; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .chat-scroll-btn{ transition:opacity .01s linear !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -5520,16 +5607,23 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       chatMessages.appendChild(sep);
     }
 
-    // ── Auto-scroll follow state ──────────────────────────────────────────
-    // true while the view should keep tracking new content; flipped to
-    // false the moment the user scrolls away from the bottom, and back to
-    // true once they scroll back within the threshold. Purely a scroll-
-    // position observation -- no chat/streaming logic involved.
+    // ── Auto-scroll follow state + scroll-to-bottom button ───────────────
+    // chatFollowBottom: true while the view should keep tracking new content;
+    // flipped to false the moment the user scrolls away from the bottom, and
+    // back to true once they return or press the scroll button.
+    // The scroll button ref is assigned later after the DOM element exists.
+    let _chatScrollBtnEl = null; // set by setupScrollBtn() below
+    function _updateScrollBtnVisibility(){
+      if(!_chatScrollBtnEl) return;
+      _chatScrollBtnEl.classList.toggle('is-visible', !chatFollowBottom);
+    }
+
     let chatFollowBottom = true;
     const CHAT_BOTTOM_THRESHOLD = 80;
     chatMessages.addEventListener('scroll', function(){
       const distFromBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight;
       chatFollowBottom = distFromBottom < CHAT_BOTTOM_THRESHOLD;
+      _updateScrollBtnVisibility();
     }, { passive: true });
 
     // One RAF handle shared across all typewriter scroll requests.
@@ -5541,6 +5635,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // new assistant response starting). Always resumes following.
         chatMessages.scrollTop = chatMessages.scrollHeight;
         chatFollowBottom = true;
+        _updateScrollBtnVisibility();
         return;
       }
       // Typewriter/streaming path: batch via RAF, skip if a frame is already queued.
@@ -6194,6 +6289,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       saveHistory(history);
 
       chatInput.value = '';
+      resizeChatInput(); // reset height after message is sent
       showTyping();
 
       const ctx = { isFirst: isFirstMessage, lastIntentId: getLastIntent(), lastRaw: trimmed };
@@ -6302,23 +6398,32 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       if(e.key === 'Escape' && chatOpen) closeChat();
     });
 
-    // ── Textarea auto-expand (up to ~4 lines) + Enter-to-send ──────────────
-    // chatInput is a <textarea> so it can grow, but the original UI behaved
-    // like a single-line input: Enter submits, Shift+Enter inserts a newline.
+    // ── Scroll-to-bottom button wiring ────────────────────────────────────
+    // Connect the button element to the visibility tracker declared near the
+    // auto-scroll follow state above. Clicking snaps to newest message and
+    // resumes auto-scroll during streaming.
+    (function setupScrollBtn(){
+      const btn = document.getElementById('chatScrollBtn');
+      if(!btn) return;
+      _chatScrollBtnEl = btn;
+      btn.addEventListener('click', function(){
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        chatFollowBottom = true;
+        _updateScrollBtnVisibility();
+      });
+    })();
+
+    // ── Textarea auto-expand (up to 6 lines) ──────────────────────────────
+    // Enter / Shift+Enter both insert a newline naturally. Only the Send
+    // button (or programmatic sendMessage calls) submit the message.
     function resizeChatInput(){
       if(!chatInput) return;
       chatInput.style.height = 'auto';
-      chatInput.style.height = Math.min(chatInput.scrollHeight, 96) + 'px';
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 144) + 'px';
     }
     if(chatInput){
       resizeChatInput();
       chatInput.addEventListener('input', resizeChatInput);
-      chatInput.addEventListener('keydown', function(e){
-        if(e.key === 'Enter' && !e.shiftKey){
-          e.preventDefault();
-          if(chatForm) chatForm.requestSubmit ? chatForm.requestSubmit() : sendMessage(chatInput.value);
-        }
-      });
       // Rotating placeholder: cycles a few FLICO-flavored prompts while the
       // field is empty and not focused. Never touches real typed text.
       let _phIdx = 0;
@@ -6606,6 +6711,17 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   <div class="chat-messages" id="chatMessages"></div>
 
   <div class="chat-suggestions" id="chatSuggestions"></div>
+
+  <!-- Scroll-to-bottom button: floats above the input bar, fades in when
+       the user scrolls up through history, hides when already at bottom. -->
+  <div class="chat-scroll-bottom-wrap" aria-hidden="true">
+    <button type="button" class="chat-scroll-btn" id="chatScrollBtn" aria-label="Scroll to newest message">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <path d="M7 2v8M3 7l4 5 4-5" stroke="currentColor" stroke-width="1.85"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
 
   <form class="chat-input-row" id="chatForm">
     <div class="chat-input-inner">
