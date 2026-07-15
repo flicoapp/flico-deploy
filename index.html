@@ -5094,6 +5094,9 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       const myAbort = () => controller.abort();
       activeStreamAbort = myAbort; // expose so sendMessage can cancel
       const timer = setTimeout(()=> controller.abort(), ASSISTANT_TIMEOUT_MS);
+      // Declared here (before the outer try) so the finally block can reach it.
+      // Assigned after the reader is created inside the try.
+      let _cancelOnAbort = null;
       try{
         // Fail fast and unambiguously when the browser already knows it has no
         // connection, instead of waiting out the full request timeout.
@@ -5149,15 +5152,29 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         let buffer = '';
         let gotAnyText = false;
 
+        // Register a proactive abort listener BEFORE entering the read loop.
+        // When controller.abort() fires, this immediately calls reader.cancel(),
+        // which closes the ReadableStream and causes any suspended reader.read()
+        // promise to resolve with { done: true } rather than hanging indefinitely.
+        //
+        // Why this matters: the AbortController signal is wired to the fetch()
+        // call, so the *network request* is cancelled when abort() fires.
+        // However, many browser/CF-Worker combinations do NOT automatically
+        // propagate that cancellation to an active reader.read() promise — the
+        // promise just stays pending, the read loop never advances to the next
+        // iteration, and the abort checks (below) never execute. The result is
+        // that clicking Stop looks correct in the UI (button reverts, typewriter
+        // freezes) but the underlying async loop is silently stuck.  Calling
+        // reader.cancel() proactively, in the same synchronous turn as abort(),
+        // is the spec-correct way to unblock reader.read().
+        _cancelOnAbort = () => { try { reader.cancel(); } catch(_){} };
+        controller.signal.addEventListener('abort', _cancelOnAbort, { once: true });
+
         try{
           while(true){
-            // Some browsers resolve an in-flight reader.read() with one last
-            // buffered chunk instead of rejecting immediately when the signal
-            // is aborted — checking here (before *and* after each read) closes
-            // that race so an interrupted stream can never emit another token.
-            if(controller.signal.aborted){ try{ await reader.cancel(); }catch(e){} break; }
+            if(controller.signal.aborted){ break; }
             const { done, value } = await reader.read();
-            if(controller.signal.aborted){ try{ await reader.cancel(); }catch(e){} break; }
+            if(controller.signal.aborted){ break; }
             if(done) break;
             buffer += decoder.decode(value, { stream:true });
             const events = buffer.split('\n\n');
@@ -5197,6 +5214,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         return true;
       } finally {
         clearTimeout(timer);
+        // Clean up the proactive abort listener regardless of how we exited
+        // (natural completion, abort, timeout, or error).  { once: true }
+        // auto-removes on fire but a no-op removeEventListener is harmless
+        // and keeps things symmetrical / leak-free on the normal path.
+        if(_cancelOnAbort) controller.signal.removeEventListener('abort', _cancelOnAbort);
         // Only clear the shared handle if it's still ours -- see the note
         // above. If a newer message has already installed its own abort
         // handle, leave it alone so the new stream stays cancellable.
