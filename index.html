@@ -2360,26 +2360,26 @@
     display:flex;
     align-items:center;
     gap:8px;
-    color:#FF4D4F;
-    font-weight:500;
-    font-size:14px;
+    color:#FF5A5F;
+    font-weight:400;
+    font-size:13px;
     line-height:1.4;
     background:transparent;
   }
-  .chat-network-error-icon{ flex:none; color:#FF4D4F; }
+  .chat-network-error-icon{ flex:none; color:#FF5A5F; }
   .chat-retry-btn{
     height:36px;
     padding:0 18px;
-    border:1px solid #FF4D4F;
-    border-radius:16px;
+    border:1px solid #FF5A5F;
+    border-radius:18px;
     background:transparent;
-    color:#FF4D4F;
+    color:#FF5A5F;
     font-weight:500;
-    font-size:14px;
+    font-size:13px;
     cursor:pointer;
     transition:background 0.15s ease, transform 0.15s ease;
   }
-  .chat-retry-btn:hover{ background:rgba(255,77,79,0.08); }
+  .chat-retry-btn:hover{ background:rgba(255,90,95,0.08); }
   .chat-retry-btn:active{ transform:scale(0.96); }
   .chat-retry-btn:disabled{ opacity:0.55; cursor:default; }
 
@@ -2449,10 +2449,10 @@
     color:#FFFFFF !important;
     font-family:'Inter',-apple-system,'Segoe UI',Roboto,
                 'Helvetica Neue',Arial,sans-serif !important;
-    font-size:18px !important;
+    font-size:16px !important;
     font-weight:400 !important;
-    line-height:1.4 !important;
-    letter-spacing:0.15px !important;
+    line-height:1.5 !important;
+    letter-spacing:0 !important;
     max-height:96px !important;
     overflow-y:auto !important;
     outline:none !important;
@@ -2470,7 +2470,8 @@
     box-shadow:none !important;
   }
   .chat-input-row textarea::placeholder{
-    color:#7D7D7D !important;
+    color:#8A8A8A !important;
+    font-size:16px !important;
     font-weight:400 !important;
   }
   .chat-input-row textarea::-webkit-scrollbar{ width:4px; }
@@ -5919,12 +5920,21 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         let idleTicks  = 0;     // ticks elapsed since submit with nothing active yet
         const MAX_IDLE = 38;    // 38 × 80 ms ≈ 3 s maximum wait before giving up
 
+        // syncSendButtonState fires via setTimeout(0) after submit clears
+        // the textarea and will re-disable the button.  Win the race by
+        // scheduling our own re-enable slightly later (20 ms > 0 ms).
+        setTimeout(function(){ if(btn.classList.contains('is-streaming')) btn.disabled = false; }, 20);
+
         poll = setInterval(function(){
           const active = !!(activeStreamAbort || activeTypedBox);
 
           if(active){
             sawActive = true;
             idleTicks = 0;
+            // Keep the button enabled for the entire stream so the user
+            // can always click Stop — prevents syncSendButtonState from
+            // locking it out while tokens are still arriving.
+            btn.disabled = false;
           } else if(sawActive){
             // Was active, now genuinely finished — revert immediately.
             revertToSend();
