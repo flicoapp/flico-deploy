@@ -1,0 +1,100 @@
+================================================== CRITICAL CHAT UX FIXES
+The current implementation is NOT behaving correctly.
+
+These issues must be fixed before pushing.
+
+Do NOT redesign the UI.
+
+Do NOT change the backend, API, database, authentication, routing, or AI model.
+
+Only fix the existing chat behavior and UI.
+
+==================================================
+
+STOP BUTTON ==================================================
+Current behavior is wrong.
+
+The Stop button appears only while the loading indicator is visible.
+
+It must instead appear immediately when AI starts generating and remain visible for the ENTIRE streamed response.
+
+It should disappear only when:
+
+• Generation finishes • User presses Stop • User sends another message
+
+Never switch back to Send while tokens are still streaming.
+
+================================================== 2. STOP MUST ACTUALLY WORK
+Currently Stop does nothing.
+
+Fix the root cause.
+
+When Stop is pressed:
+
+• Immediately abort the active generation request. • Stop receiving tokens. • Stop rendering new text. • Remove the loading state. • Keep the partial response already generated. • Switch back to the Send button immediately.
+
+Do NOT fake the stop by hiding the UI.
+
+================================================== 3. INTERRUPT CURRENT RESPONSE
+If the assistant is still responding and the user sends another message:
+
+Immediately perform the exact same behavior as pressing Stop.
+
+• Cancel the current stream. • Prevent any more tokens from appearing. • Keep the partial response. • Start the new request immediately.
+
+Never allow two active responses simultaneously.
+
+================================================== 4. ERROR MESSAGE UI
+The current error bubble looks like a normal assistant message.
+
+Replace it with a proper inline error component.
+
+Style:
+
+• Small warning icon. • Soft red text (#FF5A5F). • No assistant avatar. • No chat bubble. • Transparent background. • Smaller typography. • Below it show a Retry button.
+
+Retry button:
+
+• Height: 36px • Border: 1px solid #FF5A5F • Transparent background. • Radius: 18px.
+
+Retry should resend the last failed request automatically.
+
+================================================== 5. VERIFY
+Run the app.
+
+Verify:
+
+✓ Stop works. ✓ New message interrupts current response. ✓ Stop stays visible during the full streamed response. ✓ Error UI is no longer a chat bubble. ✓ Retry works. ✓ No duplicate streams. ✓ No flicker.
+
+Do not commit until every item above works correctly.
+
+================================================== CHAT INPUT BAR ALIGNMENT FIX
+The current chat input bar looks uneven and unbalanced.
+
+Do NOT redesign it.
+
+Keep the same overall FLICO design, but make it perfectly aligned and premium.
+
+================================================== OVERALL BAR
+• Total height: 64px • Horizontal margin: 16px • Bottom safe-area spacing: 16px • Border radius: 999px • Everything must be vertically centered.
+
+================================================== INNER INPUT
+• Height: 50px • Equal left and right padding (18px) • Perfect vertical text alignment. • Placeholder should sit exactly in the center vertically. • Remove any extra top or bottom padding. • Keep the subtle inner rounded border. • Maintain equal spacing between the text field and the send/stop button.
+
+================================================== SEND / STOP BUTTON
+• Size: 52×52px • Perfect circle. • Absolutely centered vertically inside the chat bar. • Equal spacing from the right edge (6px). • Icon perfectly centered using flex. • No visual offset.
+
+When AI is generating: • Replace the airplane with the white rounded-square Stop icon. • Keep the button in the exact same position. • No movement or resizing when switching icons.
+
+================================================== PLACEHOLDER
+• Font size: 16px • Font weight: 400 • Color: #8A8A8A • Vertically centered. • No clipping.
+
+================================================== RESPONSIVENESS
+Verify on multiple mobile screen sizes.
+
+Ensure: • Input bar stays fixed above the keyboard. • No stretching. • No uneven height. • No overflowing. • No clipped corners. • No layout shift when the keyboard opens. • Everything remains perfectly aligned.
+
+The final chat bar should feel as polished as ChatGPT or WhatsApp while preserving the existing FLICO visual identity.
+
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.
+
