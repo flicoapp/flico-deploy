@@ -2865,11 +2865,11 @@
     height:48px !important;
     padding:0 10px 0 18px !important;
     background:transparent !important;
-    border:none !important;
+    border:1.5px solid rgba(123,203,66,0.18) !important;
     box-shadow:none !important;
   }
   .chat-input-inner:focus-within{
-    border:none !important;
+    border-color:rgba(123,203,66,0.32) !important;
     box-shadow:none !important;
   }
   .chat-input-row textarea::placeholder{
@@ -5379,6 +5379,9 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     let activeStreamAbort = null; // fn that aborts the live fetch; null when idle
     let activeTypedBox = null;    // the currently-running typewriter box; null when idle
     let activeNetworkErrorEl = null; // the inline "unable to connect" row; null when idle
+    // Set by setupComposerState; called from sendMessage() to show the Stop
+    // button on ALL send paths (form submit, chip click, card click, Enter).
+    let composerStartStreaming = null;
 
     // Removes any inline network-error row still on screen. Called whenever a
     // new message is sent (it must never sit alongside a fresh reply) and
@@ -6160,6 +6163,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
       if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
       removeActiveNetworkError();
+      // Show Stop button immediately on ALL send paths — form submit, chip
+      // click, card click, Enter key. setupComposerState covers the form:submit
+      // path via capture listener; composerStartStreaming covers everything else.
+      if(composerStartStreaming) composerStartStreaming();
       const myId = ++activeMsgId;
       isTyping = false;
       removeTypingIndicator();
@@ -6377,11 +6384,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       //   • Gemini / API  → activeStreamAbort is set within ~1 tick
       //   • Local KB      → activeStreamAbort stays null but activeTypedBox
       //                      is set after the thinkDelay (~450–1150 ms)
-      form.addEventListener('submit', function(){
+      // startStreaming() — shows Stop immediately and starts the completion
+      // poll. Extracted from the form:submit handler so sendMessage() can also
+      // call it directly for chip/card clicks that bypass form submit.
+      function startStreaming(){
         clearInterval(poll);
         btn.classList.add('is-streaming');
         btn.disabled = false;
-
         let sawActive  = false; // true once activeStreamAbort/activeTypedBox actually appears
         let idleTicks  = 0;     // ticks elapsed since submit with nothing active yet
         const MAX_IDLE = 38;    // 38 × 80 ms ≈ 3 s maximum wait before giving up
@@ -6410,6 +6419,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
             revertToSend();
           }
         }, 80);
+      }
+      // Expose to module scope so sendMessage() can trigger streaming state
+      // on non-form send paths (chip, card, keyboard shortcut without requestSubmit).
+      composerStartStreaming = startStreaming;
+
+      form.addEventListener('submit', function(){
+        startStreaming();
       }, { capture: true });
 
       // Stop click: cancel everything right now, no delay.
