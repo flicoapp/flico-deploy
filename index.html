@@ -2844,6 +2844,59 @@
     .chat-msg{ animation:none !important; }
   }
 
+  /* ============================================================
+     FLICO Composer v8 — input bar proportions fix
+     Rebuilds ONLY the composer bar sizing/spacing to the approved
+     spec below. No layout elsewhere, no chat logic, no streaming/
+     backend code touched. Wins the cascade as the final block.
+     ============================================================ */
+  .chat-input-row{
+    height:62px !important;
+    padding:0 !important;
+    background:#111111 !important;
+    border:1px solid rgba(255,255,255,0.06) !important;
+    box-shadow:0 10px 30px rgba(0,0,0,.22) !important;
+  }
+  .chat-input-row:focus-within{
+    border-color:rgba(255,255,255,0.06) !important;
+    box-shadow:0 10px 30px rgba(0,0,0,.22) !important;
+  }
+  .chat-input-inner{
+    height:48px !important;
+    padding:0 10px 0 18px !important;
+    background:transparent !important;
+    border:none !important;
+    box-shadow:none !important;
+  }
+  .chat-input-inner:focus-within{
+    border:none !important;
+    box-shadow:none !important;
+  }
+  .chat-input-row textarea::placeholder{
+    color:#8E8E8E !important;
+    font-size:16px !important;
+    font-weight:400 !important;
+  }
+  .chat-input-row button[type="submit"]{
+    width:48px !important;
+    height:48px !important;
+    min-width:48px !important;
+    margin:0 6px 0 0 !important;
+    background:linear-gradient(135deg,#88E54A 0%,#6FBF36 100%) !important;
+    box-shadow:0 6px 18px rgba(123,203,66,.22) !important;
+  }
+  .chat-input-row button[type="submit"]:hover:not(:disabled){
+    box-shadow:0 6px 20px rgba(123,203,66,.30) !important;
+  }
+  .chat-input-row button[type="submit"]:active:not(:disabled){
+    box-shadow:0 4px 14px rgba(123,203,66,.20) !important;
+  }
+  .chat-input-row button[type="submit"].is-streaming{
+    background:linear-gradient(135deg,#88E54A 0%,#6FBF36 100%) !important;
+  }
+  .btn-send-icon svg,
+  .btn-stop-icon svg{ width:18px !important; height:18px !important; }
+
 </style>
 </head>
 <body>
@@ -6104,6 +6157,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     // affordance, does not touch sendMessage/streaming/chat logic at all.
     if(chatSendBtn && chatInput){
       const syncSendButtonState = function(){
+        if(chatSendBtn.classList.contains('is-streaming')) return;
         chatSendBtn.disabled = chatInput.value.trim().length === 0;
       };
       syncSendButtonState();
