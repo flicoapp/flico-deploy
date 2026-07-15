@@ -5382,6 +5382,8 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     // Set by setupComposerState; called from sendMessage() to show the Stop
     // button on ALL send paths (form submit, chip click, card click, Enter).
     let composerStartStreaming = null;
+    // Called by every generation-end path to revert the button to Send.
+    let composerStopStreaming  = null;
 
     // Removes any inline network-error row still on screen. Called whenever a
     // new message is sent (it must never sit alongside a fresh reply) and
@@ -6093,7 +6095,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           : result.text;
         fb.pushAll(fallbackText);
         fb.close();
-        fb.whenDone.then((finalText)=> commitReply(myId, finalText, result.intentId));
+        fb.whenDone.then((finalText)=>{
+          commitReply(myId, finalText, result.intentId);
+          if(composerStopStreaming) composerStopStreaming(myId);
+        });
       }
 
       // Connectivity-specific failure: no backend/API reply is possible right
@@ -6114,6 +6119,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           box = null;
         }
         removeActiveNetworkError();
+        if(composerStopStreaming) composerStopStreaming(myId);
         activeNetworkErrorEl = renderNetworkError(function(){
           if(activeMsgId !== myId) return; // a newer message superseded this one
           removeActiveNetworkError();
@@ -6139,6 +6145,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
             box.whenDone.then((finalText)=>{
               if(activeTypedBox === box) activeTypedBox = null;
               commitReply(myId, finalText, result.intentId);
+              if(composerStopStreaming) composerStopStreaming(myId);
             });
           } else {
             runFallback(new Error('api_returned_no_text'));
@@ -6163,11 +6170,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
       if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
       removeActiveNetworkError();
-      // Show Stop button immediately on ALL send paths — form submit, chip
-      // click, card click, Enter key. setupComposerState covers the form:submit
-      // path via capture listener; composerStartStreaming covers everything else.
-      if(composerStartStreaming) composerStartStreaming();
+      // Bump activeMsgId first so composerStartStreaming receives the correct
+      // generation id, which all completion callbacks use to guard stale reverts.
       const myId = ++activeMsgId;
+      if(composerStartStreaming) composerStartStreaming(myId);
       isTyping = false;
       removeTypingIndicator();
 
@@ -6208,6 +6214,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           box.whenDone.then((finalText)=>{
             if(activeTypedBox === box) activeTypedBox = null;
             commitReply(myId, finalText, result.intentId);
+            if(composerStopStreaming) composerStopStreaming(myId);
           });
         }, thinkDelay);
         return;
@@ -6351,101 +6358,70 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     }
 
     // ── Composer streaming state: Send ↔ Stop icon swap ───────────────────
-    // Purely cosmetic layer — no chat logic, streaming, or API code changed.
-    // Reads the module-level activeStreamAbort / activeTypedBox variables
-    // that already exist in this scope; creates zero new module-level state.
+    // Event-driven — no polling. sendMessage() calls composerStartStreaming(myId)
+    // which records the active generation id. Every generation-end path (natural
+    // completion, fallback, network error) calls composerStopStreaming(myId), which
+    // only reverts when the id still matches, so a stale callback from a cancelled
+    // request can never flip the button while a newer generation is running.
     (function setupComposerState(){
       const btn   = document.getElementById('chatSendStopBtn');
       const input = chatInput;
       const form  = chatForm;
       if(!btn || !input || !form) return;
 
-      let poll = null; // local only — not a module-level variable
+      // The myId of the generation that currently owns the Stop button.
+      // Set to -1 by the Stop handler to invalidate in-flight stop callbacks.
+      let activeGenId = 0;
 
-      // Immediately cancel everything and snap back to Send.
-      // Called by Stop click AND naturally when poll detects completion.
+      // Snap back to Send. Called directly by the Stop click (no genId check
+      // needed there — the user's intent is the authority) and by stopStreaming()
+      // after it verifies the genId matches.
       function revertToSend(){
-        clearInterval(poll); poll = null;
         btn.classList.remove('is-streaming');
         btn.disabled = input.value.trim().length === 0;
       }
 
-      // On every submit, show Stop *immediately* — like ChatGPT, the button
-      // must flip the instant the user hits Send/Enter, not once the network
-      // request or local "thinking" delay happens to produce something to
-      // point at. This also means Stop is clickable (and correctly cancels
-      // the pending reply via the activeMsgId bump below) during the local
-      // KB route's ~450–1150 ms "thinking" pause, before activeTypedBox
-      // even exists yet.
-      //
-      // The poll then just watches for the natural end of generation so it
-      // can revert to Send on its own — it no longer decides when to show
-      // Stop in the first place. Handles BOTH routes:
-      //   • Gemini / API  → activeStreamAbort is set within ~1 tick
-      //   • Local KB      → activeStreamAbort stays null but activeTypedBox
-      //                      is set after the thinkDelay (~450–1150 ms)
-      // startStreaming() — shows Stop immediately and starts the completion
-      // poll. Extracted from the form:submit handler so sendMessage() can also
-      // call it directly for chip/card clicks that bypass form submit.
-      function startStreaming(){
-        clearInterval(poll);
+      // Show Stop immediately when a new generation starts.
+      // sendMessage() calls this with its own myId on every send path
+      // (form submit, chip click, card click, Enter key).
+      function startStreaming(genId){
+        activeGenId = genId;
         btn.classList.add('is-streaming');
         btn.disabled = false;
-        let sawActive  = false; // true once activeStreamAbort/activeTypedBox actually appears
-        let idleTicks  = 0;     // ticks elapsed since submit with nothing active yet
-        const MAX_IDLE = 38;    // 38 × 80 ms ≈ 3 s maximum wait before giving up
-
-        // syncSendButtonState fires via setTimeout(0) after submit clears
-        // the textarea and will re-disable the button.  Win the race by
-        // scheduling our own re-enable slightly later (20 ms > 0 ms).
+        // syncSendButtonState fires via setTimeout(0) after submit clears the
+        // textarea and may re-disable the button. Win the race by scheduling
+        // our own re-enable slightly later (20 ms > 0 ms).
         setTimeout(function(){ if(btn.classList.contains('is-streaming')) btn.disabled = false; }, 20);
-
-        poll = setInterval(function(){
-          const active = !!(activeStreamAbort || activeTypedBox);
-
-          if(active){
-            sawActive = true;
-            idleTicks = 0;
-            // Keep the button enabled for the entire stream so the user
-            // can always click Stop — prevents syncSendButtonState from
-            // locking it out while tokens are still arriving.
-            btn.disabled = false;
-          } else if(sawActive){
-            // Was active, now genuinely finished — revert immediately.
-            revertToSend();
-          } else if(++idleTicks >= MAX_IDLE){
-            // Never became active within 3 s (e.g. sendMessage() bailed out
-            // on an empty/whitespace string) — nothing to track, revert.
-            revertToSend();
-          }
-        }, 80);
       }
-      // Expose to module scope so sendMessage() can trigger streaming state
-      // on non-form send paths (chip, card, keyboard shortcut without requestSubmit).
-      composerStartStreaming = startStreaming;
 
-      form.addEventListener('submit', function(){
-        startStreaming();
-      }, { capture: true });
+      // Called by every generation-end path (normal finish, fallback, network
+      // error). Guards with genId so an old async callback can never revert the
+      // button while a newer stream is still live.
+      function stopStreaming(genId){
+        if(genId !== activeGenId) return;
+        revertToSend();
+      }
+
+      composerStartStreaming = startStreaming;
+      composerStopStreaming  = stopStreaming;
 
       // Stop click: cancel everything right now, no delay.
       btn.addEventListener('click', function(e){
         if(!btn.classList.contains('is-streaming')) return;
         e.preventDefault();
         e.stopImmediatePropagation();
-        // Bump the shared activeMsgId the exact same way a new sendMessage()
-        // call would. Every async continuation in attemptAssistantReply
-        // (chunk callback, runFallback, handleNetworkFailure, the .then()
-        // completion branch) already guards itself with
-        // `if(activeMsgId !== myId) return;` — bumping here makes all of
-        // them treat this request as superseded with zero extra plumbing,
-        // so a manual Stop can never surface a fallback reply or a spurious
-        // "connection failed" retry banner for the request it just killed.
+        // Bump activeMsgId so every pending async continuation in
+        // attemptAssistantReply (chunk callback, runFallback,
+        // handleNetworkFailure, the .then() completion branch) sees
+        // activeMsgId !== myId and silently drops its result.
         activeMsgId++;
+        // Invalidate the current generation so any in-flight
+        // composerStopStreaming(oldId) call is a no-op.
+        activeGenId = -1;
         if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
         if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
         // Cover the case where Stop is pressed before the first chunk/box
-        // exists yet — the signature-line loading bubble is still on
+        // exists yet — the signature-line loading indicator is still on
         // screen and must be cleared immediately, not left stuck.
         isTyping = false;
         removeTypingIndicator();
