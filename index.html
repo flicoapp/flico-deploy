@@ -5906,9 +5906,16 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       let _rafIds   = [];  // live requestAnimationFrame IDs
       let _timerIds = [];  // live setTimeout IDs
 
+      // ── DEBUG: unique bubble ID for log correlation ──────────────────────
+      if(typeof window._flicoBubbleCounter === 'undefined') window._flicoBubbleCounter = 0;
+      const _bid = ++window._flicoBubbleCounter;
+      console.log('[TW-' + _bid + '] createTypedBubble() called. Total alive bubbles: ' + _bid);
+
       // Cancels every pending RAF and timer, then empties both arrays.
       // Called by both freeze() and cancel() before they return.
       function _cancelPending(){
+        const nraf = _rafIds.length, ntim = _timerIds.length;
+        console.log('[TW-' + _bid + '] _cancelPending(): cancelling ' + nraf + ' RAFs, ' + ntim + ' timers. interrupted=' + interrupted);
         _rafIds.forEach(id => cancelAnimationFrame(id));
         _rafIds = [];
         _timerIds.forEach(id => clearTimeout(id));
@@ -5980,7 +5987,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // _cancelPending() clears the timer IDs, but a timer whose callback
         // is already on the JS call stack (i.e. the engine has picked it up
         // before clearTimeout reached it) still needs this hard stop.
-        if(interrupted) return;
+        if(interrupted){
+          console.warn('[TW-' + _bid + '] step(): interrupted=true at entry — bailing (timer guard hit)');
+          return;
+        }
 
         if(queue.length === 0){
           looping = false;
@@ -5999,7 +6009,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
               // freeze()/cancel() cancel the RAF ID, but if the browser
               // picked up this callback before cancelAnimationFrame reached
               // it, interrupted is the last line of defence.
-              if(interrupted) return;
+              if(interrupted){
+                console.warn('[TW-' + _bid + '] RAF-final: interrupted=true — bailing (RAF guard hit after cancel)');
+                return;
+              }
+              console.log('[TW-' + _bid + '] RAF-final: running (queue empty, closed). wordsShown=' + wordsShown);
               const finalRaw = bubble.textContent;
               bubble.innerHTML = formatMarkdown(finalRaw);
               stamp.textContent = formatTime();
@@ -6011,6 +6025,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
               scrollToBottom(true);
               doneResolve(finalRaw);
             });
+            console.log('[TW-' + _bid + '] step(): queue empty+closed → scheduling RAF-final id=' + _rafFinal);
             _rafIds.push(_rafFinal);
           }
           return;
@@ -6033,7 +6048,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           // freeze()/cancel() will have cancelled this RAF ID, but if the
           // browser already dequeued the callback before cancelAnimationFrame
           // reached it, interrupted is the definitive stop.
-          if(interrupted) return;
+          if(interrupted){
+            console.warn('[TW-' + _bid + '] RAF-word: interrupted=true — bailing (RAF guard hit after cancel). word="' + token.word + '"');
+            return;
+          }
+          console.log('[TW-' + _bid + '] RAF-word: writing "' + token.word + '" (word #' + (wordsShown+1) + ', queue remaining=' + queue.length + ')');
           bubble.textContent += (wordsShown > 0 ? ' ' : '') + token.word;
           wordsShown++;
           scrollToBottom(true);
@@ -6057,18 +6076,29 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
       return {
         // Call as raw text chunks arrive from the network.
-        pushRaw(raw){ if(interrupted || !raw) return; enqueue(raw); kick(); },
+        pushRaw(raw){
+          if(interrupted){
+            console.warn('[TW-' + _bid + '] pushRaw(): interrupted=true — dropping chunk (len=' + (raw ? raw.length : 0) + ')');
+            return;
+          }
+          if(!raw) return;
+          enqueue(raw); kick();
+        },
         // Call once with the full text for non-streamed (local) replies.
         pushAll(text){ if(interrupted) return; enqueue(text); flushCarry(); kick(); },
         // Signals no more input is coming; the queue still finishes typing
         // itself out at its own pace before the returned promise resolves.
-        close(){ if(interrupted) return; flushCarry(); closed = true; kick(); },
+        close(){
+          console.log('[TW-' + _bid + '] close(): interrupted=' + interrupted + ' queue=' + queue.length);
+          if(interrupted) return; flushCarry(); closed = true; kick();
+        },
         hasRevealedAnything(){ return wordsShown > 0 || queue.length > 0; },
         // Silently removes the bubble from the DOM. Used only by runFallback
         // to discard a partially-started bubble when a fallback reply
         // replaces it. Cancels pending async work first so no ghost RAF
         // can mutate the (now-removed) element after it leaves the tree.
         remove(){
+          console.log('[TW-' + _bid + '] remove(): interrupted=' + interrupted + ' rafIds=' + _rafIds.length + ' timerIds=' + _timerIds.length);
           interrupted = true;
           _cancelPending();
           queue.length = 0; carry = ''; closed = true; looping = false;
@@ -6077,6 +6107,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // Immediately stops all typing, removes the bubble from DOM, and
         // resolves the promise so no dangling .whenDone.then() hangs.
         cancel(){
+          console.log('[TW-' + _bid + '] cancel(): interrupted=' + interrupted + ' rafIds=' + _rafIds.length + ' timerIds=' + _timerIds.length);
           interrupted = true;
           // Cancel every live RAF and timer before clearing state so no
           // in-flight callback can sneak a DOM write between the two.
@@ -6109,6 +6140,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // any edge-case where cancelAnimationFrame/clearTimeout loses the
         // race with the browser's internal scheduling.
         freeze(){
+          console.log('[TW-' + _bid + '] freeze() called. interrupted-before=' + interrupted
+            + ' rafIds=' + _rafIds.length + ' timerIds=' + _timerIds.length
+            + ' queue=' + queue.length + ' looping=' + looping + ' closed=' + closed
+            + ' wordsShown=' + wordsShown);
           interrupted = true;
           // Cancel every live RAF and timer atomically, before anything
           // else, so no scheduled callback can write to the DOM after this
@@ -6128,9 +6163,12 @@ Every reply should feel like it comes directly from the official FLICO team.`;
             wrap.appendChild(createCopyButton(function(){ return finalRaw; }));
           }
           doneResolve(finalRaw); // resolve so no .whenDone.then() hangs
+          console.log('[TW-' + _bid + '] freeze() complete.');
         },
         // Resolves with the final text once every queued word has been shown.
-        whenDone: donePromise
+        whenDone: donePromise,
+        // DEBUG: expose bubble ID so external callers (e.g. doStop) can log it.
+        _debugBid: _bid
       };
     }
 
@@ -6390,16 +6428,24 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // already in flight the instant a newer message aborted it, drop it
         // instead of feeding a dead/frozen bubble -- belt-and-braces on top
         // of the bubble's own `interrupted` latch and the abort itself.
-        if(activeMsgId !== myId) return;
+        if(activeMsgId !== myId){
+          console.warn('[STREAM] chunk dropped: myId=' + myId + ' activeMsgId=' + activeMsgId + ' (superseded)');
+          return;
+        }
+        console.log('[STREAM] chunk arrived myId=' + myId + ' len=' + chunk.length + ' box=' + (box ? 'bubble#' + box._debugBid : 'null'));
         ensureBox().pushRaw(chunk);
       }).then(()=>{
         // One microtask tick lets any synchronous onChunk calls that arrived
         // with the final read() complete before we inspect the box.
         setTimeout(()=>{
+          console.log('[STREAM] 50ms timer: myId=' + myId + ' activeMsgId=' + activeMsgId + ' box=' + (box ? 'bubble#' + box._debugBid : 'null') + ' usedFallback=' + usedFallback);
           // Guard first: if the user sent a new message or pressed Stop
           // between the stream ending and this 50 ms timer firing, drop
           // everything — the superseding message already owns activeMsgId.
-          if(activeMsgId !== myId) return;
+          if(activeMsgId !== myId){
+            console.warn('[STREAM] 50ms timer: myId mismatch — dropping. myId=' + myId + ' activeMsgId=' + activeMsgId);
+            return;
+          }
           if(usedFallback) return;
           if(box && box.hasRevealedAnything()){
             box.close();
@@ -6681,6 +6727,9 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       // second caller's guard returns immediately).
       function doStop(){
         if(!btn.classList.contains('is-streaming')) return;
+        console.log('[STOP] doStop() fired. activeMsgId-before=' + activeMsgId
+          + ' activeTypedBox=' + (activeTypedBox ? 'bubble#' + (activeTypedBox._debugBid || '?') : 'null')
+          + ' activeStreamAbort=' + (activeStreamAbort ? 'set' : 'null'));
         // Bump activeMsgId so every pending async continuation in
         // attemptAssistantReply (chunk callback, runFallback,
         // handleNetworkFailure, the .then() completion branch) sees
@@ -6698,6 +6747,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         removeTypingIndicator();
         removeActiveNetworkError();
         revertToSend();
+        console.log('[STOP] doStop() complete. activeMsgId-after=' + activeMsgId);
       }
 
       // PRIMARY Stop handler — pointerdown fires even when the button carries
