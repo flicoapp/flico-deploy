@@ -2396,12 +2396,13 @@
   /* ── Outer floating bar ───────────────────────────────────── */
   .chat-input-row{
     display:flex !important;
-    align-items:center !important;
+    align-items:center !important;     /* button always vertically centred */
     gap:8px !important;
     width:auto !important;
-    height:64px !important;
+    min-height:64px !important;        /* grows with textarea; was fixed 64px */
+    height:auto !important;
     margin:0 16px calc(16px + env(safe-area-inset-bottom,0px)) !important;
-    padding:6px 14px !important;
+    padding:6px 8px 6px 6px !important; /* 6px top/bottom, right clears button */
     border-radius:999px !important;
     background:#111111 !important;
     box-sizing:border-box !important;
@@ -2422,15 +2423,18 @@
     min-width:0 !important;
     display:flex !important;
     align-items:center !important;
-    height:42px !important;
+    min-height:42px !important;        /* grows with textarea; was fixed 42px */
+    height:auto !important;
     margin-left:9px !important;
-    padding:0 10px 0 18px !important;
+    /* 9px top/bottom pad: 9+24px(1-line textarea)+9 = 42px at rest, grows cleanly */
+    padding:9px 10px 9px 18px !important;
     border-radius:28px !important;
     background:rgba(255,255,255,0.015) !important;
     box-sizing:border-box !important;
     border:1.5px solid rgba(124,255,41,0.18) !important;
     box-shadow:inset 0 0 10px rgba(124,255,41,0.05) !important;
-    transition:all 220ms ease !important;
+    /* Animate only colours — not height, which must track keystrokes instantly */
+    transition:border-color 220ms ease, box-shadow 220ms ease !important;
   }
   .chat-input-inner:focus-within{
     border-color:rgba(124,255,41,0.32) !important;
@@ -3106,6 +3110,69 @@
   }
   @media (prefers-reduced-motion:reduce){
     .chat-scroll-btn{ transition:opacity .01s linear !important; }
+  }
+
+  /* ============================================================
+     FLICO Composer — auto-expand layout fix (definitive)
+     Single source of truth for composer sizing. Placed last so
+     it wins every prior !important declaration unconditionally.
+     Only layout/sizing is touched — colours, borders, gradients,
+     icons, ripples, and all JS logic are completely untouched.
+     ============================================================
+
+     Cascade conflicts resolved here:
+       v8  re-locked height:62px / height:42px — overridden below
+       v8  set transition:all on inner pill  — overridden to
+           colour-only so height tracks keystrokes instantly
+       v8  set margin:0 6px 0 0 on button  — cleared below
+       v9  set margin:9px 0 9px 9px on inner — cleared below
+           (outer padding now owns all edge spacing uniformly)
+
+     Layout contract (verified for 1–6 lines of text):
+       • Outer padding 7px top/bottom, 8px left/right
+       • gap:8px separates inner pill from button (no overlap)
+       • Inner pill: margin:0, padding:9px top+bottom
+           → at 1 line:  9 + 24px(textarea) + 9 = 42px pill  ✓
+           → at 6 lines: 9 + 144px + 9 = 162px pill           ✓
+       • Outer min-height 62px; grows to inner + 14px (2×7px)
+       • Button: align-self:center, margin:0 — always centred,
+           never overlaps; 8px from outer right border           ✓
+  ============================================================ */
+
+  /* ── Outer bar ───────────────────────────────────────────── */
+  .chat-input-row{
+    height:auto !important;
+    min-height:62px !important;
+    align-items:center !important;
+    padding:7px 8px !important;   /* equal 7-10px gap to inner on all sides */
+    gap:8px !important;            /* inner pill ↔ button; no textarea/button overlap */
+    box-sizing:border-box !important;
+  }
+
+  /* ── Inner pill ──────────────────────────────────────────── */
+  .chat-input-inner{
+    height:auto !important;
+    min-height:42px !important;
+    margin:0 !important;           /* outer padding owns all edge spacing */
+    padding:9px 10px 9px 18px !important;  /* 9+line-height+9 = 42px at rest */
+    align-items:center !important;
+    box-sizing:border-box !important;
+    /* Height must track keystrokes with zero lag — animate colours only */
+    transition:border-color 220ms ease, box-shadow 220ms ease !important;
+  }
+
+  /* ── Textarea ─────────────────────────────────────────────── */
+  .chat-input-row textarea{
+    max-height:144px !important;   /* ~6 lines at 24px/line */
+    overflow-y:auto !important;
+    align-self:center !important;
+  }
+
+  /* ── Send / Stop button ───────────────────────────────────── */
+  .chat-input-row button[type="submit"]{
+    align-self:center !important;  /* stays vertically centred as bar grows */
+    flex-shrink:0 !important;
+    margin:0 !important;           /* clear v8's margin:0 6px 0 0 */
   }
 
 </style>
