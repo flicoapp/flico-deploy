@@ -6383,6 +6383,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // and morphs it in place, reusing the same avatar element.
         if(box) box.remove();
         const fb = createTypedBubble();
+        // Register fb so doStop() / sendMessage() can freeze it if the user
+        // presses Stop while the fallback is still typing. Without this,
+        // activeTypedBox still points to the already-removed `box`, freeze()
+        // is a near-no-op, and fb's typewriter runs to completion unchecked.
+        activeTypedBox = fb;
         // When the API failed AND no KB intent matched (intentId===null), result.text is
         // the generic OUT_OF_SCOPE string which misleads. Show an API-error message instead.
         const fallbackText = (apiErr && result.intentId === null)
@@ -6391,6 +6396,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         fb.pushAll(fallbackText);
         fb.close();
         fb.whenDone.then((finalText)=>{
+          if(activeTypedBox === fb) activeTypedBox = null;
           commitReply(myId, finalText, result.intentId);
           if(composerStopStreaming) composerStopStreaming(myId);
         });
