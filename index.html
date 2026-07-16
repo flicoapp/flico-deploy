@@ -2902,6 +2902,55 @@
   .btn-stop-icon svg{ width:18px !important; height:18px !important; }
 
   /* ============================================================
+     FLICO Composer v9 — auto-expand input
+     Makes the outer bar and inner pill grow vertically with the
+     textarea while keeping equal 9 px gaps on all four sides.
+     Enter inserts a newline; Send button is the only send path.
+     Only layout/sizing changed — colors, borders, typography,
+     button size untouched. Wins the cascade as the final block.
+     ============================================================ */
+
+  /* Outer bar: drop the fixed height so it can grow with content.
+     align-items:flex-end keeps the send button pinned to the
+     bottom of the bar as the pill expands upward. */
+  .chat-input-row{
+    height:auto !important;
+    min-height:62px !important;
+    align-items:flex-end !important;
+  }
+
+  /* Inner pill: auto height + equal 9 px margin on every side that
+     faces the outer border.  The vertical padding (9 px top/bottom)
+     adds to the textarea's height so the pill stays exactly
+     textarea_height + 18 px — meaning the 9 px outer gap is always
+     preserved regardless of how tall the textarea grows.
+     Right margin is 0 because the send button fills that side. */
+  .chat-input-inner{
+    height:auto !important;
+    min-height:42px !important;
+    padding:9px 12px 9px 18px !important;
+    margin:9px 0 9px 9px !important;
+    align-items:flex-start !important;
+  }
+
+  /* Textarea: grow up to ~6 visible lines (6 × 24 px = 144 px).
+     overflow-y kicks in automatically once max-height is reached. */
+  .chat-input-row textarea{
+    max-height:144px !important;
+    overflow-y:auto !important;
+  }
+
+  /* Send/Stop button: pin to the bottom of the bar so it stays
+     fixed while the pill expands, matching the ChatGPT pattern.
+     margin-bottom:7px gives the same visual centering as the
+     original align-items:center at single-line height
+     (bar content 60 px, button 48 px → (60-48)/2 ≈ 6–7 px). */
+  .chat-input-row button[type="submit"]{
+    align-self:flex-end !important;
+    margin-bottom:7px !important;
+  }
+
+  /* ============================================================
      FLICO Chat — Copy-message button
      Minimal icon-only affordance under each finished assistant
      message, right-aligned beneath the bubble. No layout impact
@@ -5848,6 +5897,24 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       let doneResolve;
       const donePromise = new Promise(res => { doneResolve = res; });
 
+      // ── Async handle tracking ────────────────────────────────────────────
+      // Every requestAnimationFrame and setTimeout ID is stored here so that
+      // freeze() / cancel() can atomically cancel every pending callback in a
+      // single pass.  Without this, setting interrupted=true only guards
+      // *future* scheduling — already-queued RAF/timer callbacks still run,
+      // which is the root cause of the "keeps typing after Stop" bug.
+      let _rafIds   = [];  // live requestAnimationFrame IDs
+      let _timerIds = [];  // live setTimeout IDs
+
+      // Cancels every pending RAF and timer, then empties both arrays.
+      // Called by both freeze() and cancel() before they return.
+      function _cancelPending(){
+        _rafIds.forEach(id => cancelAnimationFrame(id));
+        _rafIds = [];
+        _timerIds.forEach(id => clearTimeout(id));
+        _timerIds = [];
+      }
+
       function rand(min, max){ return min + Math.random() * (max - min); }
 
       // Splits any newly-arrived text into whitespace-delimited tokens,
@@ -5906,12 +5973,33 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       }
 
       function step(){
+        // ── Finite-state guard ────────────────────────────────────────────
+        // step() is the body of every setTimeout callback in the typewriter
+        // loop.  It must be the first thing checked so that a timer that was
+        // already enqueued before freeze()/cancel() ran cannot proceed.
+        // _cancelPending() clears the timer IDs, but a timer whose callback
+        // is already on the JS call stack (i.e. the engine has picked it up
+        // before clearTimeout reached it) still needs this hard stop.
+        if(interrupted) return;
+
         if(queue.length === 0){
           looping = false;
           if(closed){
             // Stamp and final scroll run in a RAF so they land in the same
             // paint frame rather than causing an extra layout pass.
-            requestAnimationFrame(function(){
+            // Track the ID so freeze()/cancel() can cancel it if they fire
+            // between now and when the browser actually runs the callback.
+            const _rafFinal = requestAnimationFrame(function(){
+              // Remove our own ID now that we are executing — freeze() may
+              // have already cleared _rafIds by the time we run, which is
+              // fine; the interrupted check below is the real gate.
+              const _fi = _rafIds.indexOf(_rafFinal);
+              if(_fi !== -1) _rafIds.splice(_fi, 1);
+              // ── Critical guard ─────────────────────────────────────────
+              // freeze()/cancel() cancel the RAF ID, but if the browser
+              // picked up this callback before cancelAnimationFrame reached
+              // it, interrupted is the last line of defence.
+              if(interrupted) return;
               const finalRaw = bubble.textContent;
               bubble.innerHTML = formatMarkdown(finalRaw);
               stamp.textContent = formatTime();
@@ -5923,6 +6011,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
               scrollToBottom(true);
               doneResolve(finalRaw);
             });
+            _rafIds.push(_rafFinal);
           }
           return;
         }
@@ -5935,12 +6024,24 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // Write the next word in the next animation frame so the DOM mutation
         // is grouped with the browser's paint cycle, then schedule the
         // following step after the computed inter-word delay.
-        requestAnimationFrame(function(){
+        // Track the RAF ID so freeze()/cancel() can cancel it before it runs.
+        const _rafWord = requestAnimationFrame(function(){
+          // Remove our own ID — we're executing now.
+          const _wi = _rafIds.indexOf(_rafWord);
+          if(_wi !== -1) _rafIds.splice(_wi, 1);
+          // ── Critical guard ───────────────────────────────────────────────
+          // freeze()/cancel() will have cancelled this RAF ID, but if the
+          // browser already dequeued the callback before cancelAnimationFrame
+          // reached it, interrupted is the definitive stop.
+          if(interrupted) return;
           bubble.textContent += (wordsShown > 0 ? ' ' : '') + token.word;
           wordsShown++;
           scrollToBottom(true);
-          setTimeout(step, Math.max(0, delay - 16)); // subtract ~1 frame already spent
+          // Track the timer ID so freeze()/cancel() can clear it.
+          const _tid = setTimeout(step, Math.max(0, delay - 16)); // subtract ~1 frame already spent
+          _timerIds.push(_tid);
         });
+        _rafIds.push(_rafWord);
       }
 
       function kick(){ if(!looping) step(); }
@@ -5963,11 +6064,23 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // itself out at its own pace before the returned promise resolves.
         close(){ if(interrupted) return; flushCarry(); closed = true; kick(); },
         hasRevealedAnything(){ return wordsShown > 0 || queue.length > 0; },
-        remove(){ interrupted = true; wrap.remove(); },
+        // Silently removes the bubble from the DOM. Used only by runFallback
+        // to discard a partially-started bubble when a fallback reply
+        // replaces it. Cancels pending async work first so no ghost RAF
+        // can mutate the (now-removed) element after it leaves the tree.
+        remove(){
+          interrupted = true;
+          _cancelPending();
+          queue.length = 0; carry = ''; closed = true; looping = false;
+          wrap.remove();
+        },
         // Immediately stops all typing, removes the bubble from DOM, and
         // resolves the promise so no dangling .whenDone.then() hangs.
         cancel(){
           interrupted = true;
+          // Cancel every live RAF and timer before clearing state so no
+          // in-flight callback can sneak a DOM write between the two.
+          _cancelPending();
           queue.length = 0; carry = ''; closed = true; looping = false;
           doneResolve(''); // resolve once; Promise ignores subsequent calls
           wrap.remove();
@@ -5978,13 +6091,36 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // conversation history is never lost. Permanently inert afterward:
         // no later pushRaw/pushAll/close call (e.g. a chunk that was already
         // in flight from the old, now-aborted stream) can revive it.
+        //
+        // ── Why _cancelPending() must be called here ─────────────────────
+        // After freeze() sets interrupted=true and clears the queue, any
+        // RAF or timer that was already registered in the browser's queue
+        // will still fire.  Without cancellation the execution chain is:
+        //   pending RAF fires → writes token.word to DOM (BUG)
+        //                     → schedules setTimeout(step)
+        //   setTimeout fires  → step() sees queue empty + closed=true
+        //                     → schedules the final formatting RAF (BUG)
+        //   final RAF fires   → formats markdown, stamps time,
+        //                       appends copy button, resolves donePromise
+        //                       — all AFTER the bubble was frozen (BUG)
+        // _cancelPending() eliminates the first link in that chain.
+        // The if(interrupted) guards inside each callback eliminate every
+        // subsequent link, giving belt-and-suspenders protection against
+        // any edge-case where cancelAnimationFrame/clearTimeout loses the
+        // race with the browser's internal scheduling.
         freeze(){
           interrupted = true;
+          // Cancel every live RAF and timer atomically, before anything
+          // else, so no scheduled callback can write to the DOM after this
+          // point regardless of JS/browser scheduling order.
+          _cancelPending();
           queue.length = 0; carry = ''; closed = true; looping = false;
           wrap.classList.add('is-interrupted');
           const finalRaw = bubble.textContent;
           bubble.innerHTML = formatMarkdown(finalRaw);
-          // Set timestamp now; the next step()/RAF may set it again — harmless.
+          // Set timestamp now; the interrupted guards in the RAF callbacks
+          // ensure any concurrent RAF that slipped through still won't
+          // overwrite this stamp after we set it.
           if(!stamp.textContent) stamp.textContent = formatTime();
           // Stopped early still counts as "done generating" -- show the
           // copy button for whatever text made it onto the screen.
@@ -6260,6 +6396,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         // One microtask tick lets any synchronous onChunk calls that arrived
         // with the final read() complete before we inspect the box.
         setTimeout(()=>{
+          // Guard first: if the user sent a new message or pressed Stop
+          // between the stream ending and this 50 ms timer firing, drop
+          // everything — the superseding message already owns activeMsgId.
+          if(activeMsgId !== myId) return;
           if(usedFallback) return;
           if(box && box.hasRevealedAnything()){
             box.close();
