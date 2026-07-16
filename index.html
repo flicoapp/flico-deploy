@@ -6719,19 +6719,9 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     // Send button ripple — short-lived expanding ring centered on the click.
     const chatSendBtn = chatForm ? chatForm.querySelector('button[type="submit"]') : null;
 
-    // Disable the send button whenever the composer is empty -- purely a UI
-    // affordance, does not touch sendMessage/streaming/chat logic at all.
-    if(chatSendBtn && chatInput){
-      const syncSendButtonState = function(){
-        if(chatSendBtn.classList.contains('is-streaming')) return;
-        chatSendBtn.disabled = chatInput.value.trim().length === 0;
-      };
-      syncSendButtonState();
-      chatInput.addEventListener('input', syncSendButtonState);
-      chatForm.addEventListener('submit', function(){
-        setTimeout(syncSendButtonState, 0);
-      });
-    }
+    // Button appearance is now managed entirely by syncButtonMode() inside
+    // setupComposerState, which runs on every input event and on every
+    // generation start/stop. Nothing to wire up here.
 
     if(chatSendBtn){
       chatSendBtn.addEventListener('click', function(e){
@@ -6748,45 +6738,79 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     }
 
     // ── Composer streaming state: Send ↔ Stop icon swap ───────────────────
-    // Event-driven — no polling. sendMessage() calls composerStartStreaming(myId)
-    // which records the active generation id. Every generation-end path (natural
-    // completion, fallback, network error) calls composerStopStreaming(myId), which
-    // only reverts when the id still matches, so a stale callback from a cancelled
-    // request can never flip the button while a newer generation is running.
+    // Button visual is owned entirely by syncButtonMode() — the single
+    // authority that decides what the button looks like at any moment.
+    //
+    // Priority (ChatGPT-style):
+    //   1. input has text  → show Send  (even during generation)
+    //   2. generating      → show Stop
+    //   3. otherwise       → show Send, disabled
+    //
+    // When the button shows Send during generation and the user clicks it,
+    // the pointerdown/click guards see no `is-streaming` class and let the
+    // form submit through. sendMessage() already cancels the current
+    // generation before starting the new one (via activeStreamAbort +
+    // activeTypedBox.freeze + activeMsgId bump).
     (function setupComposerState(){
       const btn   = document.getElementById('chatSendStopBtn');
       const input = chatInput;
       const form  = chatForm;
       if(!btn || !input || !form) return;
 
+      // Whether a generation is currently in-flight. Decoupled from button
+      // visual so that typing text can show Send without cancelling the
+      // generation that is still running in the background.
+      let isGenerating = false;
+
       // The myId of the generation that currently owns the Stop button.
-      // Set to -1 by the Stop handler to invalidate in-flight stop callbacks.
+      // Set to -1 by doStop() to invalidate any in-flight stop callbacks.
       let activeGenId = 0;
 
-      // Snap back to Send. Called directly by the Stop click (no genId check
-      // needed there — the user's intent is the authority) and by stopStreaming()
-      // after it verifies the genId matches.
-      function revertToSend(){
-        btn.classList.remove('is-streaming');
-        btn.disabled = input.value.trim().length === 0;
+      // ── Single authority for button appearance ─────────────────────────
+      function syncButtonMode(){
+        const hasText = input.value.trim().length > 0;
+        if(hasText){
+          // Text present → always show Send, regardless of generation state.
+          btn.classList.remove('is-streaming');
+          btn.disabled = false;
+        } else if(isGenerating){
+          // No text and generating → show Stop.
+          btn.classList.add('is-streaming');
+          btn.disabled = false;
+        } else {
+          // Idle, nothing typed → show Send, disabled.
+          btn.classList.remove('is-streaming');
+          btn.disabled = true;
+        }
       }
 
-      // Show Stop immediately when a new generation starts.
-      // sendMessage() calls this with its own myId on every send path
-      // (form submit, chip click, card click, Enter key).
+      // Initial state and per-keystroke updates.
+      syncButtonMode();
+      input.addEventListener('input', syncButtonMode);
+
+      // ── revertToSend: called by doStop() and stopStreaming() ───────────
+      function revertToSend(){
+        isGenerating = false;
+        syncButtonMode();
+      }
+
+      // ── startStreaming: called by sendMessage() on every send path ─────
+      // We immediately show Stop (is-streaming) so there is no flash of
+      // the disabled Send state. Then we defer syncButtonMode() by one
+      // tick because sendMessage() clears the textarea AFTER calling
+      // composerStartStreaming(), so syncButtonMode needs to run after the
+      // input is empty to correctly confirm the Stop state.
       function startStreaming(genId){
-        activeGenId = genId;
+        activeGenId  = genId;
+        isGenerating = true;
         btn.classList.add('is-streaming');
         btn.disabled = false;
-        // syncSendButtonState fires via setTimeout(0) after submit clears the
-        // textarea and may re-disable the button. Win the race by scheduling
-        // our own re-enable slightly later (20 ms > 0 ms).
-        setTimeout(function(){ if(btn.classList.contains('is-streaming')) btn.disabled = false; }, 20);
+        setTimeout(syncButtonMode, 0); // recheck after chatInput.value = ''
       }
 
-      // Called by every generation-end path (normal finish, fallback, network
-      // error). Guards with genId so an old async callback can never revert the
-      // button while a newer stream is still live.
+      // ── stopStreaming: called by every generation-end path ─────────────
+      // genId guard prevents a stale callback from a cancelled request from
+      // reverting the button while a newer generation is already running.
       function stopStreaming(genId){
         if(genId !== activeGenId) return;
         revertToSend();
@@ -6795,27 +6819,21 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       composerStartStreaming = startStreaming;
       composerStopStreaming  = stopStreaming;
 
-      // Shared stop logic — called from both pointerdown and click so the
-      // logic never runs twice (revertToSend removes is-streaming, so the
-      // second caller's guard returns immediately).
+      // ── Shared stop logic ──────────────────────────────────────────────
+      // Called from both pointerdown and click. doStop() is a no-op if the
+      // button is not currently showing Stop (is-streaming absent), which
+      // is already true when the user has typed text — in that case the
+      // button is Send and neither handler calls doStop() at all.
       function doStop(){
         if(!btn.classList.contains('is-streaming')) return;
         console.log('[STOP] doStop() fired. activeMsgId-before=' + activeMsgId
           + ' activeTypedBox=' + (activeTypedBox ? 'bubble#' + (activeTypedBox._debugBid || '?') : 'null')
           + ' activeStreamAbort=' + (activeStreamAbort ? 'set' : 'null'));
-        // Bump activeMsgId so every pending async continuation in
-        // attemptAssistantReply (chunk callback, runFallback,
-        // handleNetworkFailure, the .then() completion branch) sees
-        // activeMsgId !== myId and silently drops its result.
         activeMsgId++;
-        // Invalidate the current generation so any in-flight
-        // composerStopStreaming(oldId) call is a no-op.
-        activeGenId = -1;
+        activeGenId  = -1;
+        isGenerating = false;
         if(activeStreamAbort){ activeStreamAbort(); activeStreamAbort = null; }
         if(activeTypedBox){ activeTypedBox.freeze(); activeTypedBox = null; }
-        // Cover the case where Stop is pressed before the first chunk/box
-        // exists yet — the signature-line loading indicator is still on
-        // screen and must be cleared immediately, not left stuck.
         isTyping = false;
         removeTypingIndicator();
         removeActiveNetworkError();
@@ -6823,23 +6841,20 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         console.log('[STOP] doStop() complete. activeMsgId-after=' + activeMsgId);
       }
 
-      // PRIMARY Stop handler — pointerdown fires even when the button carries
-      // the HTML `disabled` attribute, which the browser sets via
-      // syncSendButtonState when the textarea is empty. CSS
-      // `pointer-events:auto` makes the button *look* clickable but cannot
-      // override `disabled` for JS click-event dispatch; pointerdown has no
-      // such restriction. Calling preventDefault() here also cancels the
-      // subsequent click event (and therefore the form submit) in all modern
-      // browsers, so the existing click guard below is just belt-and-braces.
+      // PRIMARY — pointerdown fires even when `disabled`. preventDefault()
+      // cancels the follow-up click and form-submit. Only active when the
+      // button is in Stop mode (is-streaming). When the button shows Send
+      // (user has typed text), this handler returns immediately and the
+      // form submit proceeds to sendMessage() normally.
       btn.addEventListener('pointerdown', function(e){
         if(!btn.classList.contains('is-streaming')) return;
-        e.preventDefault(); // cancels the follow-up click / form submit
+        e.preventDefault();
         doStop();
       });
 
-      // SECONDARY Stop handler (click, capture phase) — fires when the button
-      // is not disabled and pointerdown's preventDefault did not suppress click.
-      // The doStop() guard means it is always a no-op if pointerdown already ran.
+      // SECONDARY — capture-phase click fires if pointerdown didn't
+      // preventDefault (shouldn't happen, but belt-and-braces). doStop()'s
+      // own guard makes it a no-op if pointerdown already ran.
       btn.addEventListener('click', function(e){
         if(!btn.classList.contains('is-streaming')) return;
         e.preventDefault();
