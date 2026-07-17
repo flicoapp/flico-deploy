@@ -3207,7 +3207,7 @@
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: #1F1F25;
+    background: #232323;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -7187,23 +7187,55 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   'use strict';
 
   /* ── Easings ──────────────────────────────────────────────────────── */
-  var EO  = 'cubic-bezier(0.22, 1, 0.36, 1)';  /* ease-out  — grows / slides in  */
-  var EIO = 'cubic-bezier(0.45, 0, 0.55, 1)';  /* ease-in-out — collapses / spin  */
+  var EO  = 'cubic-bezier(0.22, 1, 0.36, 1)';  /* ease-out        — grows / slides in  */
+  var EIO = 'cubic-bezier(0.45, 0, 0.55, 1)';  /* ease-in-out     — collapses / spins  */
 
   /*
    * Starting translateX for each clip (360 px stage / 1080 px canvas = ⅓ scale).
-   * Each value moves the clip from its natural PNG position to the canvas
-   * centre so it can slide outward during Phase 3 assembly.
-   *
    *  white_left  PNG offset = −310 px → start tx = +310/3 = +103 px
    *  green_left  PNG offset = −166 px → start tx = +166/3 =  +55 px
    *  green_right PNG offset = +195 px → start tx = −195/3 =  −65 px
    *  white_right PNG offset = +320 px → start tx = −320/3 = −107 px
+   *
+   * Cumulative timing (ms):
+   *   P1  grow   line        0 →  600  (600 ms)
+   *   P2  rotate −180°     600 → 1100  (500 ms)
+   *   P3  greens out      1100 → 1800  (700 ms)
+   *   P4  whites out      1800 → 2300  (500 ms)
+   *   Hold               2300 → 3100  (800 ms min — extends if app not ready)
+   *   P5A whites return  3100 → 3600  (500 ms)
+   *   P5B greens return  3600 → 4300  (700 ms)
+   *   P6  rotate −360°   4300 → 4800  (500 ms)
+   *   Shrink + fade      4800 → 5200  (400 ms)
+   *   Overlay fade       5200 → 5500  (300 ms)
    */
   var WL = 103, GL = 55, GR = -65, WR = -107;
 
+  /* ── App-ready gate ───────────────────────────────────────────────── */
+  var _appReady        = (document.readyState === 'complete');
+  var _readyCallback   = null;
+  var _idleAnim        = null;
+
+  function _signalReady(){
+    if(_appReady) return;
+    _appReady = true;
+    if(_readyCallback){ _readyCallback(); _readyCallback = null; }
+  }
+  if(!_appReady){
+    window.addEventListener('load', _signalReady, { once:true });
+    /* Safety: never block splash beyond 10 s regardless */
+    setTimeout(_signalReady, 10000);
+  }
+
+  /* Calls cb immediately if ready, otherwise stores it for when ready fires */
+  function whenReady(cb){
+    if(_appReady){ cb(); } else { _readyCallback = cb; }
+  }
+
+  /* ── Main run ─────────────────────────────────────────────────────── */
   function run(){
     var splash = document.getElementById('flico-splash');
+    var stage  = document.getElementById('splash-stage');
     var ph     = document.getElementById('sp-ph');
     var wl     = document.getElementById('sp-wl');
     var gl     = document.getElementById('sp-gl');
@@ -7212,101 +7244,125 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
     if(!splash || !ph) return;
 
-    /* ── Phase 1 (0–350 ms): Center line grows from scaleY(0) → scaleY(1) ── */
+    /* Collapses the assembled logo and removes the overlay */
+    function startCollapse(){
+      /* Stop idle breath if running */
+      if(_idleAnim){ _idleAnim.cancel(); _idleAnim = null; }
+
+      /* P5A (500 ms): both white shapes return simultaneously */
+      wl.animate(
+        [{ transform:'translateX(0) scale(1)',            opacity:'1' },
+         { transform:'translateX('+WL+'px) scale(0.94)', opacity:'0' }],
+        { duration:500, easing:EIO, fill:'forwards' }
+      );
+      wr.animate(
+        [{ transform:'translateX(0) scale(1)',            opacity:'1' },
+         { transform:'translateX('+WR+'px) scale(0.94)', opacity:'0' }],
+        { duration:500, easing:EIO, fill:'forwards' }
+      );
+
+      /* P5B (700 ms): both green shapes return — starts after P5A */
+      setTimeout(function(){
+        gl.animate(
+          [{ transform:'translateX(0) scale(1)',           opacity:'1' },
+           { transform:'translateX('+GL+'px) scale(0.94)', opacity:'0' }],
+          { duration:700, easing:EIO, fill:'forwards' }
+        );
+        gr.animate(
+          [{ transform:'translateX(0) scale(1)',           opacity:'1' },
+           { transform:'translateX('+GR+'px) scale(0.94)', opacity:'0' }],
+          { duration:700, easing:EIO, fill:'forwards' }
+        );
+      }, 500);
+
+      /* P6 (500 ms): second half anti-clockwise rotation — starts after P5A+P5B */
+      setTimeout(function(){
+        ph.animate(
+          [{ transform:'scaleY(1) rotate(-180deg)' },
+           { transform:'scaleY(1) rotate(-360deg)' }],
+          { duration:500, easing:EIO, fill:'forwards' }
+        );
+      }, 1200);
+
+      /* Shrink + fade (400 ms): center line collapses to a point */
+      setTimeout(function(){
+        ph.animate(
+          [{ transform:'scaleY(1) rotate(-360deg)', opacity:'1' },
+           { transform:'scaleY(0) rotate(-360deg)', opacity:'0' }],
+          { duration:400, easing:EIO, fill:'forwards' }
+        );
+      }, 1700);
+
+      /* Overlay fade (300 ms) → DOM removal */
+      setTimeout(function(){
+        splash.animate(
+          [{ opacity:'1' }, { opacity:'0' }],
+          { duration:300, easing:'linear', fill:'forwards' }
+        );
+        setTimeout(function(){ splash.remove(); }, 300);
+      }, 2100);
+    }
+
+    /* ── Phase 1 (0–600 ms): center line grows from scaleY(0) ─────── */
     ph.animate(
       [{ transform:'scaleY(0) rotate(0deg)', opacity:'0' },
        { transform:'scaleY(1) rotate(0deg)', opacity:'1' }],
-      { duration:350, easing:EO, fill:'forwards' }
+      { duration:600, easing:EO, fill:'forwards' }
     );
 
-    /* ── Phase 2 (350–600 ms): Half anti-clockwise rotation (−180°) ────────
-         Finishes perfectly vertical. No bounce, no wobble.                  */
+    /* ── Phase 2 (600–1100 ms): half anti-clockwise rotation (−180°) ─ */
     setTimeout(function(){
       ph.animate(
         [{ transform:'scaleY(1) rotate(0deg)'    },
          { transform:'scaleY(1) rotate(-180deg)' }],
-        { duration:250, easing:EIO, fill:'forwards' }
+        { duration:500, easing:EIO, fill:'forwards' }
       );
-    }, 350);
+    }, 600);
 
-    /* ── Phase 3a (600–800 ms): Green shapes slide out simultaneously ───── */
+    /* ── Phase 3 (1100–1800 ms): both green shapes slide outward ───── */
     setTimeout(function(){
       gl.animate(
         [{ transform:'translateX('+GL+'px) scale(0.94)', opacity:'0' },
          { transform:'translateX(0) scale(1)',           opacity:'1' }],
-        { duration:200, easing:EO, fill:'forwards' }
+        { duration:700, easing:EO, fill:'forwards' }
       );
       gr.animate(
         [{ transform:'translateX('+GR+'px) scale(0.94)', opacity:'0' },
          { transform:'translateX(0) scale(1)',           opacity:'1' }],
-        { duration:200, easing:EO, fill:'forwards' }
+        { duration:700, easing:EO, fill:'forwards' }
       );
-    }, 600);
+    }, 1100);
 
-    /* ── Phase 3b (800–1050 ms): White outer shapes slide out simultaneously */
+    /* ── Phase 4 (1800–2300 ms): both white shapes slide outward ────── */
     setTimeout(function(){
       wl.animate(
         [{ transform:'translateX('+WL+'px) scale(0.94)', opacity:'0' },
          { transform:'translateX(0) scale(1)',           opacity:'1' }],
-        { duration:250, easing:EO, fill:'forwards' }
+        { duration:500, easing:EO, fill:'forwards' }
       );
       wr.animate(
         [{ transform:'translateX('+WR+'px) scale(0.94)', opacity:'0' },
          { transform:'translateX(0) scale(1)',           opacity:'1' }],
-        { duration:250, easing:EO, fill:'forwards' }
+        { duration:500, easing:EO, fill:'forwards' }
       );
-    }, 800);
+    }, 1800);
 
-    /* ── Phase 4 (1050–1500 ms): Hold — logo fully assembled, completely still */
-
-    /* ── Phase 5a (1500–1700 ms): White outer shapes collapse simultaneously  */
+    /* ── Hold (2300–3100 ms min): logo fully assembled, completely still
+         If the app is still loading after 3100 ms, a subtle idle breath
+         keeps the logo alive until initialization completes.              */
     setTimeout(function(){
-      wl.animate(
-        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
-         { transform:'translateX('+WL+'px) scale(0.94)', opacity:'0' }],
-        { duration:200, easing:EIO, fill:'forwards' }
-      );
-      wr.animate(
-        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
-         { transform:'translateX('+WR+'px) scale(0.94)', opacity:'0' }],
-        { duration:200, easing:EIO, fill:'forwards' }
-      );
-    }, 1500);
-
-    /* ── Phase 5b (1700–1900 ms): Green shapes collapse simultaneously ────── */
-    setTimeout(function(){
-      gl.animate(
-        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
-         { transform:'translateX('+GL+'px) scale(0.94)', opacity:'0' }],
-        { duration:200, easing:EIO, fill:'forwards' }
-      );
-      gr.animate(
-        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
-         { transform:'translateX('+GR+'px) scale(0.94)', opacity:'0' }],
-        { duration:200, easing:EIO, fill:'forwards' }
-      );
-    }, 1700);
-
-    /* ── Phase 6 (1900–2200 ms): Second half rotation → scale to 0 + fade ──
-         Segment 1 (0–50%):  rotate −180° → −360° at scaleY(1), opacity 1
-         Segment 2 (50–100%): scaleY(1) → scaleY(0), opacity 1 → 0           */
-    setTimeout(function(){
-      ph.animate(
-        [{ transform:'scaleY(1) rotate(-180deg)', opacity:'1', offset:0,   easing:EIO },
-         { transform:'scaleY(1) rotate(-360deg)', opacity:'1', offset:0.5, easing:EIO },
-         { transform:'scaleY(0) rotate(-360deg)', opacity:'0', offset:1   }],
-        { duration:300, fill:'forwards' }
-      );
-    }, 1900);
-
-    /* ── Overlay fade + DOM removal (2200–2300 ms) ───────────────────────── */
-    setTimeout(function(){
-      splash.animate(
-        [{ opacity:'1' }, { opacity:'0' }],
-        { duration:100, easing:'linear', fill:'forwards' }
-      );
-      setTimeout(function(){ splash.remove(); }, 100);
-    }, 2200);
+      whenReady(function(){
+        /* App was already ready — collapse immediately */
+        startCollapse();
+      });
+      if(!_appReady && stage){
+        /* App still loading — gentle opacity breath on the logo */
+        _idleAnim = stage.animate(
+          [{ opacity:'1' }, { opacity:'0.6' }, { opacity:'1' }],
+          { duration:1800, iterations:Infinity, easing:'ease-in-out' }
+        );
+      }
+    }, 3100);
   }
 
   if(document.readyState === 'loading'){
