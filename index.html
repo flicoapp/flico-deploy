@@ -3198,111 +3198,84 @@
 
 
   /* ═══════════════════════════════════════════════════════════════════
-     FLICO SPLASH SCREEN
-     Pure-black full-screen overlay.
-     All geometry is CSS; no PNG/image involved.
+     FLICO SPLASH  —  PNG-asset animation
+     Five 1080×1080 RGBA PNGs stacked in a square stage.
+     They composite perfectly because each shape sits at its exact
+     position within the transparent 1080×1080 canvas.
      ═══════════════════════════════════════════════════════════════════ */
   #flico-splash {
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: #0D0D0D;
+    background: #0B0B0F;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;           /* clips off-screen sliding clips */
     pointer-events: none;
     will-change: opacity;
   }
 
   /*
-   * Logo container — 340 × 90 px coordinate space.
-   * All clips are absolutely positioned within it.
+   * Square stage — 360 × 360 px (scale factor = 360 ÷ 1080 = ⅓).
    *
-   * Geometry (gap = 10 px between every pair):
-   *   White-L:  left  13.5  w 50  h 50  rx 10   (top 20)
-   *   Green-L:  left  73.5  w 83  h 62  rx 13   (top 14)
-   *   Playhead: left 166.5  w  7  h 76  rx  3.5 (top  7)
-   *   Green-R:  left 183.5  w 83  h 62  rx 13   (top 14)
-   *   White-R:  left 276.5  w 50  h 50  rx 10   (top 20)
-   *
-   * Verification (centre = 170 px):
-   *   PH centre = 166.5 + 3.5 = 170 ✓
-   *   GL right  = 73.5 + 83 = 156.5 → gap = 166.5−156.5 = 10 ✓
-   *   GR left   = 183.5      → gap = 183.5−173.5 = 10 ✓
-   *   WL right  = 13.5 + 50 = 63.5  → gap = 73.5−63.5  = 10 ✓
-   *   WR left   = 276.5      → gap = 276.5−266.5 = 10 ✓
+   * Starting translateX (brings each clip from its natural PNG
+   * position to the canvas centre, behind the playhead):
+   *   white_left  : +103 px  (sits 310 px left  of canvas centre)
+   *   green_left  :  +55 px  (sits 166 px left  of canvas centre)
+   *   green_right :  −65 px  (sits 195 px right of canvas centre)
+   *   white_right : −107 px  (sits 320 px right of canvas centre)
    */
-  #splash-logo {
+  #splash-stage {
     position: relative;
-    width: 340px;
-    height: 90px;
-    will-change: transform;
+    width:  360px;
+    height: 360px;
   }
 
-  /* Playhead — thin white rounded vertical bar */
+  /* All five PNGs occupy the full stage square */
+  .sp-piece {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  /* Playhead — always visible, always on top, rotates around own centre */
   #sp-ph {
-    position: absolute;
-    left: 166.5px;
-    top: 7px;
-    width: 7px;
-    height: 76px;
-    border-radius: 3.5px;
-    background: #fff;
-    /* start invisible; JS animates opacity + scaleY in */
-    opacity: 0;
-    transform-origin: center center;
-    will-change: opacity, transform;
+    z-index: 10;
+    transform-origin: 50% 50%;
+    transform: scale(0.85);
+    will-change: transform, opacity;
   }
 
-  /* All four timeline clips */
-  .sp-clip {
-    position: absolute;
-    will-change: transform;
-  }
-
-  /* Green left — starts off-screen left */
-  #sp-gl {
-    left: 73.5px;
-    top: 14px;
-    width: 83px;
-    height: 62px;
-    border-radius: 13px;
-    background: #7CFF00;
-    transform: translateX(-280px);
-  }
-
-  /* Green right — starts off-screen right */
-  #sp-gr {
-    left: 183.5px;
-    top: 14px;
-    width: 83px;
-    height: 62px;
-    border-radius: 13px;
-    background: #7CFF00;
-    transform: translateX(280px);
-  }
-
-  /* White left — starts off-screen left */
+  /* Left clips — start invisible at canvas centre */
   #sp-wl {
-    left: 13.5px;
-    top: 20px;
-    width: 50px;
-    height: 50px;
-    border-radius: 10px;
-    background: #fff;
-    transform: translateX(-260px);
+    z-index: 2;
+    opacity: 0;
+    transform: translateX(103px) scale(0.94);
+    will-change: transform, opacity;
+  }
+  #sp-gl {
+    z-index: 3;
+    opacity: 0;
+    transform: translateX(55px) scale(0.94);
+    will-change: transform, opacity;
   }
 
-  /* White right — starts off-screen right */
+  /* Right clips — start invisible at canvas centre */
+  #sp-gr {
+    z-index: 3;
+    opacity: 0;
+    transform: translateX(-65px) scale(0.94);
+    will-change: transform, opacity;
+  }
   #sp-wr {
-    left: 276.5px;
-    top: 20px;
-    width: 50px;
-    height: 50px;
-    border-radius: 10px;
-    background: #fff;
-    transform: translateX(260px);
+    z-index: 2;
+    opacity: 0;
+    transform: translateX(-107px) scale(0.94);
+    will-change: transform, opacity;
   }
   /* ═══════════════════════════════════════════════════════════════════ */
 
@@ -3310,17 +3283,18 @@
 </head>
 <body>
 
-<!-- ═══ FLICO SPLASH SCREEN ══════════════════════════════════════════════
-     Logo is pure CSS geometry — no image asset used.
-     Removed from DOM automatically after animation completes.
-     ═══════════════════════════════════════════════════════════════════ -->
+<!-- ═══ FLICO SPLASH ═══════════════════════════════════════════════════════
+     Five 1080×1080 RGBA PNGs stacked in a square stage.
+     Playhead (#sp-ph, z:10) always sits above all four clips.
+     Overlay auto-removed from DOM after animation ends (~2.15 s).
+     ═══════════════════════════════════════════════════════════════════════ -->
 <div id="flico-splash" aria-hidden="true" role="presentation">
-  <div id="splash-logo">
-    <div class="sp-clip" id="sp-wl"></div><!-- white left  -->
-    <div class="sp-clip" id="sp-gl"></div><!-- green left  -->
-    <div id="sp-ph"></div>               <!-- playhead    -->
-    <div class="sp-clip" id="sp-gr"></div><!-- green right -->
-    <div class="sp-clip" id="sp-wr"></div><!-- white right -->
+  <div id="splash-stage">
+    <img class="sp-piece" id="sp-wl" src="assets/splash/white_left.png"  alt="" draggable="false">
+    <img class="sp-piece" id="sp-gl" src="assets/splash/green_left.png"  alt="" draggable="false">
+    <img class="sp-piece" id="sp-gr" src="assets/splash/green_right.png" alt="" draggable="false">
+    <img class="sp-piece" id="sp-wr" src="assets/splash/white_right.png" alt="" draggable="false">
+    <img class="sp-piece" id="sp-ph" src="assets/splash/center_line.png" alt="" draggable="false">
   </div>
 </div>
 
@@ -7192,106 +7166,150 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
 
 <!-- ═══ FLICO SPLASH ANIMATION ════════════════════════════════════════════
-     Timeline:
-       0 ms    – Playhead fades + scaleY in (270 ms, ease-out)
-     470 ms    – White-L slides in from left (280 ms, snap)
-     610 ms    – Green-L slides in from left (280 ms, snap)  +140 ms stagger
-     770 ms    – Green-R slides in from right (280 ms, snap) +160 ms stagger
-     910 ms    – White-R slides in from right (280 ms, snap) +140 ms stagger
-    1100 ms    – All assembled; hold begins
-    1500 ms    – Breathing pulse: scale 1 → 1.01 → 1  (400 ms, ease-in-out)
-    1900 ms    – Overlay fades out (240 ms)
-    2140 ms    – Overlay removed from DOM
+     ms from page load → action
+       0   Playhead: scale 0.85→1 (350 ms, ease-out)        [0.00–0.35 s]
+     400   White-L slides out from centre (200 ms, snap)    [0.40 s]
+     530   Green-L slides out from centre (200 ms, snap)    [0.53 s]
+     660   Green-R slides out from centre (200 ms, snap)    [0.66 s]
+     790   White-R slides out from centre (200 ms, snap)    [0.79 s → done 0.99 s]
+     990   Logo assembled — hold begins                     [≈ 1.00 s]
+    1350   White-R returns to centre (100 ms)               [1.35 s]
+    1430   Green-R returns (100 ms)
+    1510   Green-L returns (100 ms)
+    1590   White-L returns (100 ms → done 1690 ms)          [≈ 1.70 s]
+    1700   Playhead: rotate 90° + scale→0 + fade (250 ms)   [1.75 s]
+    1950   Overlay fades out (200 ms)
+    2150   Overlay removed from DOM                         [2.15 s ✓]
      ═══════════════════════════════════════════════════════════════════ -->
 <script>
 (function(){
   'use strict';
 
-  /* Easings */
-  var SNAP     = 'cubic-bezier(0.16, 1, 0.3, 1)';   /* decel snap — magnetic feel */
-  var EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)';  /* smooth ease-out for playhead */
-  var EASE_IO  = 'cubic-bezier(0.45, 0, 0.55, 1)';  /* ease-in-out for breathing + fade */
+  /* ── Easings ──────────────────────────────────────────────────────── */
+  var SNAP = 'cubic-bezier(0.16, 1, 0.3, 1)';   /* magnetic snap for clip slides */
+  var EO   = 'cubic-bezier(0.22, 1, 0.36, 1)';  /* ease-out for playhead grow    */
+  var EIO  = 'cubic-bezier(0.45, 0, 0.55, 1)';  /* ease-in-out for collapses     */
 
-  function go(){
+  /*
+   * Starting translateX for each clip (360 px stage / 1080 px canvas = ⅓ scale).
+   * These values move the shape from its natural PNG position to the
+   * canvas centre, so it can slide outward during assembly.
+   *
+   *  white_left  PNG offset = −310 px → start tx = +310/3 = +103 px
+   *  green_left  PNG offset = −166 px → start tx = +166/3 =  +55 px
+   *  green_right PNG offset = +195 px → start tx = −195/3 =  −65 px
+   *  white_right PNG offset = +320 px → start tx = −320/3 = −107 px
+   */
+  var WL = 103, GL = 55, GR = -65, WR = -107;
+
+  function run(){
     var splash = document.getElementById('flico-splash');
-    var logo   = document.getElementById('splash-logo');
     var ph     = document.getElementById('sp-ph');
     var wl     = document.getElementById('sp-wl');
     var gl     = document.getElementById('sp-gl');
     var gr     = document.getElementById('sp-gr');
     var wr     = document.getElementById('sp-wr');
 
-    if(!splash || !logo || !ph) return;
+    if(!splash || !ph) return;
 
-    /* ── Phase 1: Playhead appears ──────────────────────────────────── */
+    /* ── Phase 1: Playhead scales in (0.00 → 0.35 s) ─────────────── */
     ph.animate(
-      [{ opacity:'0', transform:'scaleY(0.8)' },
-       { opacity:'1', transform:'scaleY(1)'   }],
-      { duration:270, easing:EASE_OUT, fill:'forwards' }
+      [{ transform:'scale(0.85)', opacity:'1' },
+       { transform:'scale(1)',    opacity:'1' }],
+      { duration:350, easing:EO, fill:'forwards' }
     );
 
-    /* ── Phase 2a: White-L slides in from left (t=470) ─────────────── */
-    setTimeout(function(){
+    /* ── Phase 2: Assembly — each clip from centre → natural pos ──── */
+
+    setTimeout(function(){   /* White-L (t = 400 ms) */
       wl.animate(
-        [{ transform:'translateX(-260px)' },
-         { transform:'translateX(0)'      }],
-        { duration:280, easing:SNAP, fill:'forwards' }
+        [{ transform:'translateX('+WL+'px) scale(0.94)', opacity:'0' },
+         { transform:'translateX(0) scale(1)',           opacity:'1' }],
+        { duration:200, easing:SNAP, fill:'forwards' }
       );
-    }, 470);
+    }, 400);
 
-    /* ── Phase 2b: Green-L slides in from left (t=610) ─────────────── */
-    setTimeout(function(){
+    setTimeout(function(){   /* Green-L (t = 530 ms) */
       gl.animate(
-        [{ transform:'translateX(-280px)' },
-         { transform:'translateX(0)'      }],
-        { duration:280, easing:SNAP, fill:'forwards' }
+        [{ transform:'translateX('+GL+'px) scale(0.94)', opacity:'0' },
+         { transform:'translateX(0) scale(1)',           opacity:'1' }],
+        { duration:200, easing:SNAP, fill:'forwards' }
       );
-    }, 610);
+    }, 530);
 
-    /* ── Phase 3a: Green-R slides in from right (t=770) ────────────── */
-    setTimeout(function(){
+    setTimeout(function(){   /* Green-R (t = 660 ms) */
       gr.animate(
-        [{ transform:'translateX(280px)' },
-         { transform:'translateX(0)'     }],
-        { duration:280, easing:SNAP, fill:'forwards' }
+        [{ transform:'translateX('+GR+'px) scale(0.94)', opacity:'0' },
+         { transform:'translateX(0) scale(1)',           opacity:'1' }],
+        { duration:200, easing:SNAP, fill:'forwards' }
       );
-    }, 770);
+    }, 660);
 
-    /* ── Phase 3b: White-R slides in from right (t=910) ────────────── */
-    setTimeout(function(){
+    setTimeout(function(){   /* White-R (t = 790 ms → assembled ≈ 990 ms) */
       wr.animate(
-        [{ transform:'translateX(260px)' },
-         { transform:'translateX(0)'     }],
-        { duration:280, easing:SNAP, fill:'forwards' }
+        [{ transform:'translateX('+WR+'px) scale(0.94)', opacity:'0' },
+         { transform:'translateX(0) scale(1)',           opacity:'1' }],
+        { duration:200, easing:SNAP, fill:'forwards' }
       );
-    }, 910);
+    }, 790);
 
-    /* ── Phase 4: Breathing pulse on whole logo (t=1500) ───────────── */
+    /* ── Phase 3: Hold 350 ms, then disassemble in reverse order ──── */
+
+    setTimeout(function(){   /* White-R returns (t = 1350 ms) */
+      wr.animate(
+        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
+         { transform:'translateX('+WR+'px) scale(0.94)', opacity:'0' }],
+        { duration:100, easing:EIO, fill:'forwards' }
+      );
+    }, 1350);
+
+    setTimeout(function(){   /* Green-R returns (t = 1430 ms) */
+      gr.animate(
+        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
+         { transform:'translateX('+GR+'px) scale(0.94)', opacity:'0' }],
+        { duration:100, easing:EIO, fill:'forwards' }
+      );
+    }, 1430);
+
+    setTimeout(function(){   /* Green-L returns (t = 1510 ms) */
+      gl.animate(
+        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
+         { transform:'translateX('+GL+'px) scale(0.94)', opacity:'0' }],
+        { duration:100, easing:EIO, fill:'forwards' }
+      );
+    }, 1510);
+
+    setTimeout(function(){   /* White-L returns (t = 1590 ms → done ≈ 1690 ms) */
+      wl.animate(
+        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
+         { transform:'translateX('+WL+'px) scale(0.94)', opacity:'0' }],
+        { duration:100, easing:EIO, fill:'forwards' }
+      );
+    }, 1590);
+
+    /* ── Phase 4: Playhead rotates 90° around own centre (t = 1700 ms) */
     setTimeout(function(){
-      logo.animate(
-        [{ transform:'scale(1)'    },
-         { transform:'scale(1.01)' },
-         { transform:'scale(1)'    }],
-        { duration:400, easing:EASE_IO, fill:'forwards' }
+      ph.animate(
+        [{ transform:'rotate(0deg) scale(1)',  opacity:'1' },
+         { transform:'rotate(90deg) scale(0)', opacity:'0' }],
+        { duration:250, easing:EIO, fill:'forwards' }
       );
-    }, 1500);
+    }, 1700);
 
-    /* ── Phase 5: Fade out overlay (t=1900) ────────────────────────── */
+    /* ── Phase 5: Overlay fades out (t = 1950 ms) ────────────────── */
     setTimeout(function(){
       splash.animate(
-        [{ opacity:'1' },
-         { opacity:'0' }],
-        { duration:240, easing:EASE_IO, fill:'forwards' }
+        [{ opacity:'1' }, { opacity:'0' }],
+        { duration:200, easing:EIO, fill:'forwards' }
       );
-      setTimeout(function(){ splash.remove(); }, 240);
-    }, 1900);
+      setTimeout(function(){ splash.remove(); }, 200);
+    }, 1950);
   }
 
-  /* Fire as early as possible */
   if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', go);
+    document.addEventListener('DOMContentLoaded', run);
   } else {
-    go();
+    run();
   }
 })();
 </script>
