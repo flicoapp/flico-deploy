@@ -181,7 +181,7 @@ export async function onRequestPost(context) {
         model,
         messages,
         stream:      !isDebug,   // non-streaming in debug mode for easy body read
-        max_tokens:  isDebug ? 16 : 4096,
+        max_tokens:  isDebug ? 16 : 1024,
         temperature: 0.7,
       }),
     });
@@ -308,20 +308,6 @@ async function streamUpstreamToClient(upstreamBody, writer, encoder) {
           parsed = JSON.parse(payload);
         } catch {
           continue;
-        }
-
-        // OpenRouter sometimes embeds errors directly in the SSE stream
-        // (e.g. {"error":{"message":"Rate limit exceeded","code":429}})
-        // rather than returning an HTTP-level error.  These would otherwise
-        // be silently skipped, leaving the frontend with an empty stream and
-        // no way to distinguish "model returned nothing" from "real error".
-        // Forward them as an {"err":"..."} sentinel so the client can detect
-        // them and show the Retry prompt instead of the generic fallback.
-        if (parsed.error) {
-          const msg = parsed.error?.message || String(parsed.error);
-          console.error('[FLICO] OpenRouter in-stream error:', msg);
-          await writer.write(encoder.encode(`data: ${JSON.stringify({ err: msg })}\n\n`));
-          break; // no more content will arrive after a model error
         }
 
         const delta = parsed?.choices?.[0]?.delta?.content;
