@@ -3088,7 +3088,7 @@
     opacity:0;
     pointer-events:none;
     transition:opacity .18s ease, transform .18s ease,
-                border-color .15s ease, color .15s ease;
+                border-color .15s ease, color .15s ease, background .18s ease;
     box-shadow:0 2px 10px rgba(0,0,0,.55);
   }
   .chat-scroll-btn.is-visible{
@@ -3102,8 +3102,17 @@
     background:rgba(24,24,24,0.98);
   }
   .chat-scroll-btn:active{
-    transform:translateX(-50%) scale(0.91) !important;
-    transition-duration:.06s !important;
+    transform:translateX(-50%) scale(0.96) !important;
+    transition-duration:.08s !important;
+  }
+  /* JS-driven press state — works for both mouse and touch without sticky `:active` */
+  .chat-scroll-btn.is-pressing{
+    transform:translateX(-50%) scale(0.96) !important;
+    background:rgba(120,200,65,0.14) !important;
+    border-color:rgba(120,200,65,0.45) !important;
+    color:#78C841 !important;
+    transition:transform .08s ease, background .10s ease,
+               border-color .10s ease, color .10s ease !important;
   }
   @media (max-width:480px){
     .chat-scroll-btn{ width:32px; height:32px; bottom:8px; }
@@ -4918,7 +4927,7 @@ Would you like details about any specific category?`
 
     // ASSISTANT_API_URL is configured at the top of this script.
     // It defaults to '' (offline/local-only mode) when not set.
-    const ASSISTANT_TIMEOUT_MS = 20000;
+    const ASSISTANT_TIMEOUT_MS = 30000;
 
     // Gemini is the PRIMARY response engine for every normal message — greetings,
     // small talk, FLICO facts, comparisons, jokes, general knowledge, follow-ups,
@@ -6640,7 +6649,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
             return;
           }
           if(usedFallback) return;
-          if(box && box.hasRevealedAnything()){
+          // `box` is non-null only when onChunk() was called (real text arrived
+          // from the stream). Checking `box` alone is the correct gate — the
+          // previous `box.hasRevealedAnything()` check caused a race condition
+          // where fast responses completed before the typewriter's first
+          // requestAnimationFrame ran, making wordsShown=0 and queue.length=0
+          // even though text was queued, triggering a spurious fallback.
+          if(box){
             box.close();
             box.whenDone.then((finalText)=>{
               if(activeTypedBox === box) activeTypedBox = null;
@@ -6807,8 +6822,22 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       const btn = document.getElementById('chatScrollBtn');
       if(!btn) return;
       _chatScrollBtnEl = btn;
+
+      // Press feedback — pointer events work correctly for both mouse and touch.
+      // `pointerdown` immediately shows the pressed state; `pointerup` /
+      // `pointercancel` / `pointerleave` clear it so it never stays green.
+      function applyPress(){ btn.classList.add('is-pressing'); }
+      function clearPress(){ btn.classList.remove('is-pressing'); }
+      btn.addEventListener('pointerdown',   applyPress, { passive: true });
+      btn.addEventListener('pointerup',     clearPress, { passive: true });
+      btn.addEventListener('pointercancel', clearPress, { passive: true });
+      btn.addEventListener('pointerleave',  clearPress, { passive: true });
+
       btn.addEventListener('click', function(){
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Smooth animated scroll — `behavior:'smooth'` in the options overrides
+        // the container's CSS `scroll-behavior:auto`, giving a 300-500ms glide
+        // consistent with how ChatGPT and modern chat UIs scroll to bottom.
+        chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
         chatFollowBottom = true;
         _updateScrollBtnVisibility();
       });
