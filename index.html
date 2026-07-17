@@ -5338,7 +5338,15 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       // message. Only the call that still owns the slot may clear it.
       const myAbort = () => controller.abort();
       activeStreamAbort = myAbort; // expose so sendMessage can cancel
-      const timer = setTimeout(()=> controller.abort(), ASSISTANT_TIMEOUT_MS);
+      // Track whether the abort was triggered by our own timeout timer vs. an
+      // intentional user action (new message / Stop button).  Both paths set
+      // controller.signal.aborted=true, so without this flag the 50ms
+      // post-stream timer cannot tell them apart — it would see activeMsgId===myId
+      // (no new message was sent), box===null (no chunks before timeout), and
+      // call runFallback(), producing the "trouble reaching the AI" message for
+      // a request that simply took too long to start rather than genuinely failing.
+      let _abortWasTimeout = false;
+      const timer = setTimeout(()=>{ _abortWasTimeout = true; controller.abort(); }, ASSISTANT_TIMEOUT_MS);
       // Declared here (before the outer try) so the finally block can reach it.
       // Assigned after the reader is created inside the try.
       let _cancelOnAbort = null;
@@ -5372,7 +5380,19 @@ Every reply should feel like it comes directly from the official FLICO team.`;
           // failure, so resolve normally instead of surfacing a fake
           // "unable to connect" retry prompt for a request the user (or a
           // newer message) just killed on purpose.
-          if(controller.signal.aborted) return true;
+          if(controller.signal.aborted){
+            // Timeout-triggered abort: surface as a retryable connectivity
+            // error so the user gets the Retry prompt instead of a silent
+            // fallback message.  User-triggered abort (new message / Stop)
+            // just returns true so .then() fires and the activeMsgId guard
+            // discards it cleanly without touching the UI.
+            if(_abortWasTimeout){
+              const e = new Error('request_timeout');
+              e.isNetworkError = true;
+              throw e;
+            }
+            return true;
+          }
           // Any other fetch() throw (TypeError "Failed to fetch", DNS
           // failure, connection refused, or our own timeout above) means
           // the request never got a response at all. That's a genuine
@@ -5396,6 +5416,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         const decoder = new TextDecoder();
         let buffer = '';
         let gotAnyText = false;
+        // Set to the error string if OpenRouter sends an error inside the SSE
+        // stream (e.g. {"err":"Rate limit exceeded"}) rather than as an HTTP-
+        // level error.  Checked after the read loop so the throw happens outside
+        // the inner try/catch that swallows JSON.parse errors.
+        let _streamErrMsg = null;
 
         // Register a proactive abort listener BEFORE entering the read loop.
         // When controller.abort() fires, this immediately calls reader.cancel(),
@@ -5432,7 +5457,11 @@ Every reply should feel like it comes directly from the official FLICO team.`;
               if(!jsonStr) continue;
               try{
                 const parsed = JSON.parse(jsonStr);
-                if(parsed.text){ gotAnyText = true; onChunk(parsed.text); }
+                // Detect the error sentinel forwarded by our Cloudflare function
+                // when OpenRouter sends an in-stream error event instead of an
+                // HTTP-level error (e.g. rate-limit mid-stream, model refusal).
+                if(parsed.err){ _streamErrMsg = parsed.err; }
+                else if(parsed.text){ gotAnyText = true; onChunk(parsed.text); }
               } catch(e){ /* ignore partial/malformed chunk */ }
             }
           }
@@ -5451,7 +5480,27 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         }
         // An intentional interrupt (user sent a new message) breaks the read
         // loop early with no error — don't log/throw as if the API failed.
-        if(controller.signal.aborted) return true;
+        if(controller.signal.aborted){
+          // Timeout-triggered abort while reading the stream: treat as a
+          // retryable connectivity failure (same as the fetch-phase timeout
+          // above) so the user gets the Retry prompt instead of a silent
+          // fallback message.
+          if(_abortWasTimeout){
+            const e = new Error('request_timeout');
+            e.isNetworkError = true;
+            throw e;
+          }
+          return true;
+        }
+        // In-stream error from OpenRouter (rate-limit, model refusal, etc.)
+        // forwarded as {"err":"..."} by our Cloudflare function.  Treat as a
+        // retryable network-class failure so the Retry prompt appears.
+        if(_streamErrMsg){
+          console.error('[FLICO] OpenRouter in-stream error received:', _streamErrMsg);
+          const e = new Error('openrouter_stream_error');
+          e.isNetworkError = true;
+          throw e;
+        }
         if(!gotAnyText){
           console.error('[FLICO] /api/chat returned HTTP 200 but the SSE stream had zero text chunks. Check Cloudflare real-time logs for model errors.');
           throw new Error('assistant_api_empty');
