@@ -3207,7 +3207,7 @@
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: #0B0B0F;
+    background: #1F1F25;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3242,11 +3242,12 @@
     -webkit-user-drag: none;
   }
 
-  /* Playhead — always visible, always on top, rotates around own centre */
+  /* Playhead — starts hidden, grows from centre, rotates, collapses */
   #sp-ph {
     z-index: 10;
     transform-origin: 50% 50%;
-    transform: scale(0.85);
+    transform: scaleY(0);
+    opacity: 0;
     will-change: transform, opacity;
   }
 
@@ -7186,14 +7187,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   'use strict';
 
   /* ── Easings ──────────────────────────────────────────────────────── */
-  var SNAP = 'cubic-bezier(0.16, 1, 0.3, 1)';   /* magnetic snap for clip slides */
-  var EO   = 'cubic-bezier(0.22, 1, 0.36, 1)';  /* ease-out for playhead grow    */
-  var EIO  = 'cubic-bezier(0.45, 0, 0.55, 1)';  /* ease-in-out for collapses     */
+  var EO  = 'cubic-bezier(0.22, 1, 0.36, 1)';  /* ease-out  — grows / slides in  */
+  var EIO = 'cubic-bezier(0.45, 0, 0.55, 1)';  /* ease-in-out — collapses / spin  */
 
   /*
    * Starting translateX for each clip (360 px stage / 1080 px canvas = ⅓ scale).
-   * These values move the shape from its natural PNG position to the
-   * canvas centre, so it can slide outward during assembly.
+   * Each value moves the clip from its natural PNG position to the canvas
+   * centre so it can slide outward during Phase 3 assembly.
    *
    *  white_left  PNG offset = −310 px → start tx = +310/3 = +103 px
    *  green_left  PNG offset = −166 px → start tx = +166/3 =  +55 px
@@ -7212,98 +7212,101 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
     if(!splash || !ph) return;
 
-    /* ── Phase 1: Playhead scales in (0.00 → 0.35 s) ─────────────── */
+    /* ── Phase 1 (0–350 ms): Center line grows from scaleY(0) → scaleY(1) ── */
     ph.animate(
-      [{ transform:'scale(0.85)', opacity:'1' },
-       { transform:'scale(1)',    opacity:'1' }],
+      [{ transform:'scaleY(0) rotate(0deg)', opacity:'0' },
+       { transform:'scaleY(1) rotate(0deg)', opacity:'1' }],
       { duration:350, easing:EO, fill:'forwards' }
     );
 
-    /* ── Phase 2: Assembly — each clip from centre → natural pos ──── */
-
-    setTimeout(function(){   /* White-L (t = 400 ms) */
-      wl.animate(
-        [{ transform:'translateX('+WL+'px) scale(0.94)', opacity:'0' },
-         { transform:'translateX(0) scale(1)',           opacity:'1' }],
-        { duration:200, easing:SNAP, fill:'forwards' }
+    /* ── Phase 2 (350–600 ms): Half anti-clockwise rotation (−180°) ────────
+         Finishes perfectly vertical. No bounce, no wobble.                  */
+    setTimeout(function(){
+      ph.animate(
+        [{ transform:'scaleY(1) rotate(0deg)'    },
+         { transform:'scaleY(1) rotate(-180deg)' }],
+        { duration:250, easing:EIO, fill:'forwards' }
       );
-    }, 400);
+    }, 350);
 
-    setTimeout(function(){   /* Green-L (t = 530 ms) */
+    /* ── Phase 3a (600–800 ms): Green shapes slide out simultaneously ───── */
+    setTimeout(function(){
       gl.animate(
         [{ transform:'translateX('+GL+'px) scale(0.94)', opacity:'0' },
          { transform:'translateX(0) scale(1)',           opacity:'1' }],
-        { duration:200, easing:SNAP, fill:'forwards' }
+        { duration:200, easing:EO, fill:'forwards' }
       );
-    }, 530);
-
-    setTimeout(function(){   /* Green-R (t = 660 ms) */
       gr.animate(
         [{ transform:'translateX('+GR+'px) scale(0.94)', opacity:'0' },
          { transform:'translateX(0) scale(1)',           opacity:'1' }],
-        { duration:200, easing:SNAP, fill:'forwards' }
+        { duration:200, easing:EO, fill:'forwards' }
       );
-    }, 660);
+    }, 600);
 
-    setTimeout(function(){   /* White-R (t = 790 ms → assembled ≈ 990 ms) */
+    /* ── Phase 3b (800–1050 ms): White outer shapes slide out simultaneously */
+    setTimeout(function(){
+      wl.animate(
+        [{ transform:'translateX('+WL+'px) scale(0.94)', opacity:'0' },
+         { transform:'translateX(0) scale(1)',           opacity:'1' }],
+        { duration:250, easing:EO, fill:'forwards' }
+      );
       wr.animate(
         [{ transform:'translateX('+WR+'px) scale(0.94)', opacity:'0' },
          { transform:'translateX(0) scale(1)',           opacity:'1' }],
-        { duration:200, easing:SNAP, fill:'forwards' }
+        { duration:250, easing:EO, fill:'forwards' }
       );
-    }, 790);
+    }, 800);
 
-    /* ── Phase 3: Hold 350 ms, then disassemble in reverse order ──── */
+    /* ── Phase 4 (1050–1500 ms): Hold — logo fully assembled, completely still */
 
-    setTimeout(function(){   /* White-R returns (t = 1350 ms) */
-      wr.animate(
-        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
-         { transform:'translateX('+WR+'px) scale(0.94)', opacity:'0' }],
-        { duration:100, easing:EIO, fill:'forwards' }
-      );
-    }, 1350);
-
-    setTimeout(function(){   /* Green-R returns (t = 1430 ms) */
-      gr.animate(
-        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
-         { transform:'translateX('+GR+'px) scale(0.94)', opacity:'0' }],
-        { duration:100, easing:EIO, fill:'forwards' }
-      );
-    }, 1430);
-
-    setTimeout(function(){   /* Green-L returns (t = 1510 ms) */
-      gl.animate(
-        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
-         { transform:'translateX('+GL+'px) scale(0.94)', opacity:'0' }],
-        { duration:100, easing:EIO, fill:'forwards' }
-      );
-    }, 1510);
-
-    setTimeout(function(){   /* White-L returns (t = 1590 ms → done ≈ 1690 ms) */
+    /* ── Phase 5a (1500–1700 ms): White outer shapes collapse simultaneously  */
+    setTimeout(function(){
       wl.animate(
         [{ transform:'translateX(0) scale(1)',           opacity:'1' },
          { transform:'translateX('+WL+'px) scale(0.94)', opacity:'0' }],
-        { duration:100, easing:EIO, fill:'forwards' }
+        { duration:200, easing:EIO, fill:'forwards' }
       );
-    }, 1590);
+      wr.animate(
+        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
+         { transform:'translateX('+WR+'px) scale(0.94)', opacity:'0' }],
+        { duration:200, easing:EIO, fill:'forwards' }
+      );
+    }, 1500);
 
-    /* ── Phase 4: Playhead rotates 90° around own centre (t = 1700 ms) */
+    /* ── Phase 5b (1700–1900 ms): Green shapes collapse simultaneously ────── */
     setTimeout(function(){
-      ph.animate(
-        [{ transform:'rotate(0deg) scale(1)',  opacity:'1' },
-         { transform:'rotate(90deg) scale(0)', opacity:'0' }],
-        { duration:250, easing:EIO, fill:'forwards' }
+      gl.animate(
+        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
+         { transform:'translateX('+GL+'px) scale(0.94)', opacity:'0' }],
+        { duration:200, easing:EIO, fill:'forwards' }
+      );
+      gr.animate(
+        [{ transform:'translateX(0) scale(1)',           opacity:'1' },
+         { transform:'translateX('+GR+'px) scale(0.94)', opacity:'0' }],
+        { duration:200, easing:EIO, fill:'forwards' }
       );
     }, 1700);
 
-    /* ── Phase 5: Overlay fades out (t = 1950 ms) ────────────────── */
+    /* ── Phase 6 (1900–2200 ms): Second half rotation → scale to 0 + fade ──
+         Segment 1 (0–50%):  rotate −180° → −360° at scaleY(1), opacity 1
+         Segment 2 (50–100%): scaleY(1) → scaleY(0), opacity 1 → 0           */
+    setTimeout(function(){
+      ph.animate(
+        [{ transform:'scaleY(1) rotate(-180deg)', opacity:'1', offset:0,   easing:EIO },
+         { transform:'scaleY(1) rotate(-360deg)', opacity:'1', offset:0.5, easing:EIO },
+         { transform:'scaleY(0) rotate(-360deg)', opacity:'0', offset:1   }],
+        { duration:300, fill:'forwards' }
+      );
+    }, 1900);
+
+    /* ── Overlay fade + DOM removal (2200–2300 ms) ───────────────────────── */
     setTimeout(function(){
       splash.animate(
         [{ opacity:'1' }, { opacity:'0' }],
-        { duration:200, easing:EIO, fill:'forwards' }
+        { duration:100, easing:'linear', fill:'forwards' }
       );
-      setTimeout(function(){ splash.remove(); }, 200);
-    }, 1950);
+      setTimeout(function(){ splash.remove(); }, 100);
+    }, 2200);
   }
 
   if(document.readyState === 'loading'){
