@@ -3316,14 +3316,21 @@
     pointer-events:none; /* children opt in */
   }
 
-  /* ── Hit zone — 44×80px tap target centred on the handle (44px = Apple HIG min) */
+  /* ── Handle button — 44×80px tap target centred on the visible line ── */
   .ctl-hit{
+    /* button resets */
+    border:none;
+    background:none;
+    -webkit-appearance:none;
+    appearance:none;
+    padding:0;
+    /* layout */
     position:absolute;
     right:0;
     top:50%;
     transform:translateY(-50%);
-    width:44px;   /* ≥ 44px — Apple HIG / WCAG minimum touch target */
-    height:80px;  /* taller than 44px for comfort; spec says ≥ 44px */
+    width:44px;   /* Apple HIG / WCAG minimum touch target */
+    height:80px;
     display:flex;
     align-items:center;
     justify-content:flex-end;
@@ -3331,8 +3338,14 @@
     box-sizing:border-box;
     cursor:pointer;
     pointer-events:auto;
-    z-index:30; /* must beat sidebar (z:1) AND .ctl-root (z:20) at all times */
+    z-index:30; /* above sidebar (z:1) and root overlay (z:20) at all times */
     -webkit-tap-highlight-color:transparent;
+    outline:none;
+  }
+  .ctl-hit:focus-visible{
+    outline:2px solid rgba(120,200,65,0.55);
+    outline-offset:2px;
+    border-radius:4px;
   }
 
   /* ── The FLICO white vertical rounded line — the handle ────────────── */
@@ -7286,36 +7299,40 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   // ==========================================================
   // Prevent long-press "Download image" context menu on the chatbot mascot
   // ── Timeline Sidebar (CTL) ────────────────────────────────────────────
-  // Handle = FLICO white vertical line on RIGHT edge, rotates 45° on open.
-  // Sidebar slides from right. Sections: Today/Yesterday/Monday/Older.
-  // Auto-tracks visible conversation. Click scrolls + glows target.
+  // Production rewrite: single source of truth, animation lock, event
+  // delegation. All DOM refs cached once. Listeners registered exactly once.
   (function setupTimeline(){
+
+    /* ── Cache DOM refs — never re-queried inside handlers ──────────── */
     var root    = document.getElementById('ctlRoot');
-    var hitZone = document.getElementById('ctlHit');
+    var handle  = document.getElementById('timeline-handle');
     var sidebar = document.getElementById('ctlSidebar');
     var scroll  = document.getElementById('ctlScroll');
     var msgs    = document.getElementById('chatMessages');
-    if(!root || !hitZone || !sidebar || !scroll || !msgs) return;
+    if(!root||!handle||!sidebar||!scroll||!msgs) return;
 
-    var isOpen  = false;
-    var activeRow = null;
-    var exchanges = [];
-    /* collapseState: true = expanded. Only Today expanded by default. */
+    /* ── Single source of truth ─────────────────────────────────────── */
+    var timelineState = { isOpen: false };
+    var animating     = false;
+    var ANIM_MS       = 260; /* CSS is 235ms + 25ms buffer */
+
+    /* ── Data ───────────────────────────────────────────────────────── */
+    var exchangeMap   = {};   /* idx (number) → exchange object */
+    var exchanges     = [];
+    var activeRow     = null;
     var collapseState = { today:true, yesterday:false, monday:false, older:false };
 
-    /* ── Time helpers ──────────────────────────────────────────────── */
+    /* ── Time helpers ───────────────────────────────────────────────── */
     function pad2(n){ return n<10?'0'+n:''+n; }
     function fmtHHMM(d){ return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
     function fmtDur(ms){
-      var s = Math.max(0, Math.round(ms/1000));
-      if(s < 60) return s+' sec';
-      return Math.max(1, Math.round(s/60))+' min';
+      var s=Math.max(0,Math.round(ms/1000));
+      if(s<60) return s+' sec';
+      return Math.max(1,Math.round(s/60))+' min';
     }
-
-    /* Parse "08:42 AM" or "08:42" → Date (today, approx). Null on fail. */
     function parseTime(str){
       if(!str) return null;
-      var m = str.match(/(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i);
+      var m=str.match(/(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i);
       if(!m) return null;
       var h=parseInt(m[1],10), min=parseInt(m[2],10);
       var ap=(m[3]||'').toUpperCase();
@@ -7324,20 +7341,19 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       var d=new Date(); d.setHours(h,min,0,0); return d;
     }
 
-    /* ── Build exchange pairs (user msg + following bot msg) ─────────── */
+    /* ── Build exchange pairs from DOM ──────────────────────────────── */
     function readExchanges(){
-      var wraps = Array.from(msgs.querySelectorAll('.chat-msg-wrap'));
+      var wraps=Array.from(msgs.querySelectorAll('.chat-msg-wrap'));
       var result=[]; var i=0, idx=0;
       while(i<wraps.length){
         var w=wraps[i];
         if(w.classList.contains('user')){
           var ex={userEl:w, botEl:null, idx:idx};
-          if(i+1<wraps.length && !wraps[i+1].classList.contains('user')){
+          if(i+1<wraps.length&&!wraps[i+1].classList.contains('user')){
             ex.botEl=wraps[i+1]; i+=2;
           } else { i++; }
-          /* Time range */
           var t1=parseTime((w.querySelector('.chat-time')||{}).textContent);
-          var t2=ex.botEl ? parseTime((ex.botEl.querySelector('.chat-time')||{}).textContent) : null;
+          var t2=ex.botEl?parseTime((ex.botEl.querySelector('.chat-time')||{}).textContent):null;
           if(t1&&t2&&(t2-t1)>=60000){
             ex.timeStr=fmtHHMM(t1)+'\u2013'+fmtHHMM(t2);
             ex.durMs=t2-t1;
@@ -7353,13 +7369,14 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       return result;
     }
 
-    /* ── Render sidebar ────────────────────────────────────────────────── */
+    /* ── Render sidebar — NO inline listeners (delegation handles all) ─ */
     function buildSidebar(){
       exchanges=readExchanges();
+      exchangeMap={};
+      exchanges.forEach(function(ex){ exchangeMap[ex.idx]=ex; });
       scroll.innerHTML='';
       activeRow=null;
 
-      /* All session messages are Today; others empty but shown collapsed */
       var buckets={today:exchanges.slice().reverse(),yesterday:[],monday:[],older:[]};
       var defs=[
         {key:'today',    label:'Today'},
@@ -7375,14 +7392,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
         var secWrap=document.createElement('div');
         secWrap.className='ctl-sec';
 
-        /* Header */
         var hdr=document.createElement('div');
         hdr.className='ctl-sec-hdr'+(expanded?'':' is-collapsed');
+        hdr.dataset.secKey=def.key;
         var lbl=document.createElement('span'); lbl.textContent=def.label;
         var chv=document.createElement('span'); chv.className='ctl-chevron'; chv.textContent='\u25be';
         hdr.appendChild(lbl); hdr.appendChild(chv);
 
-        /* Items wrapper */
         var iw=document.createElement('div');
         iw.className='ctl-sec-items'+(expanded?'':' is-collapsed');
 
@@ -7395,9 +7411,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
             var row=document.createElement('div');
             row.className='ctl-item';
             row.dataset.idx=ex.idx;
-
             var dot=document.createElement('div'); dot.className='ctl-dot';
-
             var info=document.createElement('div'); info.className='ctl-info';
             var td=document.createElement('div'); td.className='ctl-time'; td.textContent=ex.timeStr;
             info.appendChild(td);
@@ -7406,40 +7420,26 @@ Every reply should feel like it comes directly from the official FLICO team.`;
               dd.textContent=fmtDur(ex.durMs); info.appendChild(dd);
             }
             row.appendChild(dot); row.appendChild(info);
-
-            row.addEventListener('click',function(e){
-              e.stopPropagation(); onItemClick(ex,row);
-            });
             iw.appendChild(row);
           });
         }
-
-        /* Toggle collapse / expand */
-        hdr.addEventListener('click',function(){
-          var expanding=hdr.classList.contains('is-collapsed');
-          collapseState[def.key]=expanding;
-          hdr.classList.toggle('is-collapsed');
-          iw.classList.toggle('is-collapsed');
-        });
 
         secWrap.appendChild(hdr); secWrap.appendChild(iw);
         scroll.appendChild(secWrap);
       });
     }
 
-    /* ── Click → close + scroll + glow ────────────────────────────────── */
-    function onItemClick(ex,row){
+    /* ── Navigate to an exchange ────────────────────────────────────── */
+    function onItemClick(ex){
       closeTimeline();
       setTimeout(function(){
-        var target=ex.userEl;
-        if(!target) return;
-        target.scrollIntoView({behavior:'smooth',block:'start'});
-        /* Apply green glow to the message bubble after scroll begins */
+        if(!ex.userEl) return;
+        ex.userEl.scrollIntoView({behavior:'smooth',block:'start'});
         setTimeout(function(){
           var bub=ex.msgBubble;
           if(!bub) return;
           bub.classList.remove('ctl-msg-glow');
-          void bub.offsetWidth; /* force reflow so animation restarts cleanly */
+          void bub.offsetWidth; /* force reflow so animation restarts */
           bub.classList.add('ctl-msg-glow');
           bub.addEventListener('animationend',function h(){
             bub.classList.remove('ctl-msg-glow');
@@ -7449,10 +7449,10 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       }, 250);
     }
 
-    /* ── Auto-tracking via IntersectionObserver ────────────────────────── */
+    /* ── Auto-tracking via IntersectionObserver ─────────────────────── */
     var trackedEls=[];
     var ioObs=new IntersectionObserver(function(entries){
-      if(!isOpen) return;
+      if(!timelineState.isOpen) return;
       var best=null, bestRatio=0;
       entries.forEach(function(e){
         if(e.isIntersecting&&e.intersectionRatio>bestRatio){
@@ -7469,52 +7469,89 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     },{root:msgs,threshold:[0.25,0.5,0.75]});
 
     function observeAll(){
-      trackedEls.forEach(function(el){ioObs.unobserve(el);});
+      trackedEls.forEach(function(el){ ioObs.unobserve(el); });
       trackedEls=[];
       msgs.querySelectorAll('.chat-msg-wrap.user').forEach(function(w,i){
         w._ctlIdx=i; ioObs.observe(w); trackedEls.push(w);
       });
     }
 
-    /* ── Open / Close ──────────────────────────────────────────────────── */
+    /* ── Open ────────────────────────────────────────────────────────── */
     function openTimeline(){
-      if(isOpen) return;
-      isOpen=true;
+      if(timelineState.isOpen||animating) return;
+      animating=true;
+      timelineState.isOpen=true;
       buildSidebar(); observeAll();
       root.classList.add('is-open');
-      root.setAttribute('aria-hidden','false');
       sidebar.setAttribute('aria-hidden','false');
-      hitZone.setAttribute('aria-expanded','true');
-      hitZone.setAttribute('aria-label','Close timeline');
+      handle.setAttribute('aria-expanded','true');
+      handle.setAttribute('aria-label','Close message timeline');
+      setTimeout(function(){ animating=false; }, ANIM_MS);
     }
 
+    /* ── Close ───────────────────────────────────────────────────────── */
     function closeTimeline(){
-      if(!isOpen) return;
-      isOpen=false;
+      if(!timelineState.isOpen||animating) return;
+      animating=true;
+      timelineState.isOpen=false;
       root.classList.remove('is-open');
-      root.setAttribute('aria-hidden','true');
       sidebar.setAttribute('aria-hidden','true');
-      hitZone.setAttribute('aria-expanded','false');
-      hitZone.setAttribute('aria-label','Open timeline');
+      handle.setAttribute('aria-expanded','false');
+      handle.setAttribute('aria-label','Open message timeline');
+      setTimeout(function(){ animating=false; }, ANIM_MS);
     }
 
-    /* ── Events ────────────────────────────────────────────────────────── */
-    hitZone.addEventListener('click',function(e){
+    /* ═══════════════════════════════════════════════════════════════════
+       EVENT LISTENERS — registered exactly ONCE, never inside render
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /* 1. Handle button — sole open/close trigger */
+    handle.addEventListener('click', function(e){
       e.stopPropagation();
-      if(isOpen) closeTimeline(); else openTimeline();
+      timelineState.isOpen ? closeTimeline() : openTimeline();
     });
-    hitZone.addEventListener('keydown',function(e){
-      if(e.key==='Enter'||e.key===' '){e.preventDefault(); if(isOpen) closeTimeline(); else openTimeline();}
+
+    /* 2. Keyboard support on the native button (Enter/Space are free) */
+    /* <button> already fires click on Enter/Space — no extra keydown needed */
+
+    /* 3. Overlay close — tap on messages area outside sidebar */
+    msgs.addEventListener('click', function(e){
+      if(!timelineState.isOpen||animating) return;
+      if(sidebar.contains(e.target)||handle.contains(e.target)) return;
+      closeTimeline();
     });
-    /* Close on tap anywhere in the messages area (outside sidebar) */
-    msgs.addEventListener('click',function(e){
-      if(isOpen&&!sidebar.contains(e.target)) closeTimeline();
+
+    /* 4. Delegated scroll clicks — section headers AND items in one handler */
+    scroll.addEventListener('click', function(e){
+      /* Section header collapse/expand */
+      var hdr=e.target.closest('.ctl-sec-hdr');
+      if(hdr){
+        var key=hdr.dataset.secKey;
+        if(!key) return;
+        var expanding=hdr.classList.contains('is-collapsed');
+        collapseState[key]=expanding;
+        hdr.classList.toggle('is-collapsed');
+        /* iw is always the immediate next sibling of hdr */
+        var iw=hdr.nextElementSibling;
+        if(iw) iw.classList.toggle('is-collapsed');
+        return;
+      }
+      /* Timeline item navigation */
+      var item=e.target.closest('.ctl-item');
+      if(item){
+        var idx=parseInt(item.dataset.idx,10);
+        if(isNaN(idx)) return;
+        var ex=exchangeMap[idx];
+        if(ex) onItemClick(ex);
+      }
     });
-    /* Refresh sidebar when new messages appear */
-    var domObs=new MutationObserver(function(){
-      observeAll(); if(isOpen) buildSidebar();
-    });
-    domObs.observe(msgs,{childList:true});
+
+    /* 5. DOM observer — refresh data when messages arrive */
+    new MutationObserver(function(){
+      observeAll();
+      if(timelineState.isOpen) buildSidebar();
+    }).observe(msgs,{childList:true});
+
   })();
 
   (function protectMascotIcon(){
@@ -7646,12 +7683,12 @@ Every reply should feel like it comes directly from the official FLICO team.`;
        Handle = FLICO white vertical rounded line on right edge.
        Tap → line rotates 45° CW + sidebar slides from right simultaneously.
        ─────────────────────────────────────────────────────────────────── -->
-  <div class="ctl-root" id="ctlRoot" aria-hidden="true">
-    <!-- Tap zone wraps the white handle line (easier tap target) -->
-    <div class="ctl-hit" id="ctlHit" role="button" tabindex="0"
-         aria-label="Open message timeline" aria-expanded="false">
-      <div class="ctl-handle" id="ctlHandle" aria-hidden="true"></div>
-    </div>
+  <div class="ctl-root" id="ctlRoot">
+    <!-- Native button — the ONLY interactive element for open/close -->
+    <button class="ctl-hit" id="timeline-handle"
+            aria-label="Open message timeline" aria-expanded="false">
+      <div class="ctl-handle" aria-hidden="true"></div>
+    </button>
     <!-- Sidebar slides in from right -->
     <div class="ctl-sidebar" id="ctlSidebar" aria-hidden="true">
       <div class="ctl-scroll" id="ctlScroll"></div>
