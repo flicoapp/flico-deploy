@@ -3303,216 +3303,236 @@
   }
 
   /* ============================================================
-     Timeline Sidebar  (CTL)
-     Handle = FLICO white vertical rounded line on the RIGHT edge.
-     Sidebar slides from right. Width ≈ 90px. New elements only.
+     Timeline Sidebar v2  (#tl-*)
+     Fresh implementation — no shared code with previous CTL.
+     Handle = glass-morph pill with the exact provided line image.
+     Sidebar slides from right, 260 px wide, glass-morph dark panel.
      ============================================================ */
 
-  /* ── Root — absolute overlay inside chat-panel ────────────────────── */
-  .ctl-root{
+  /* ── Root overlay ─────────────────────────────────────────────────── */
+  #tl-root{
     position:absolute;
     inset:0;
-    z-index:20;
-    pointer-events:none; /* children opt in */
+    pointer-events:none;
+    z-index:100;
   }
 
-  /* ── Handle button — 44×80px tap target centred on the visible line ── */
-  .ctl-hit{
-    /* button resets */
+  /* ── Handle — native button, minimum 48×64 touch target ──────────── */
+  #tl-handle{
     border:none;
     background:none;
     -webkit-appearance:none;
     appearance:none;
     padding:0;
-    /* layout */
+    margin:0;
+    cursor:pointer;
     position:absolute;
     right:0;
     top:50%;
     transform:translateY(-50%);
-    width:44px;   /* Apple HIG / WCAG minimum touch target */
-    height:80px;
+    width:52px;
+    height:64px;
     display:flex;
     align-items:center;
-    justify-content:flex-end;
-    padding-right:9px;
-    box-sizing:border-box;
-    cursor:pointer;
+    justify-content:center;
     pointer-events:auto;
-    z-index:30; /* above sidebar (z:1) and root overlay (z:20) at all times */
+    z-index:102;
     -webkit-tap-highlight-color:transparent;
     outline:none;
+    touch-action:manipulation;
   }
-  .ctl-hit:focus-visible{
-    outline:2px solid rgba(120,200,65,0.55);
-    outline-offset:2px;
-    border-radius:4px;
+  #tl-handle:focus-visible{
+    outline:2px solid rgba(120,200,65,0.65);
+    outline-offset:3px;
+    border-radius:10px;
   }
 
-  /* ── The FLICO white vertical rounded line — the handle ────────────── */
-  .ctl-handle{
-    width:3px;
-    height:38px;
-    border-radius:99px;
-    background:rgba(255,255,255,0.82);
-    box-shadow:0 0 8px rgba(255,255,255,0.10), 0 1px 6px rgba(0,0,0,0.36);
-    flex-shrink:0;
-    transform:rotate(0deg);
-    transform-origin:center center;
-    transition:transform 235ms ease-in-out;
+  /* ── Pill — visible glass capsule that rotates 45° on open ────────── */
+  #tl-pill{
+    width:32px;
+    height:56px;
+    background:rgba(255,255,255,0.05);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:999px;
+    box-shadow:0 4px 20px rgba(0,0,0,0.35), 0 1px 6px rgba(0,0,0,0.22);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    transition:transform 230ms ease-in-out;
     will-change:transform;
     pointer-events:none;
+    flex-shrink:0;
   }
-  .ctl-root.is-open .ctl-handle{
+  #tl-root.tl-open #tl-pill{
     transform:rotate(45deg);
   }
 
-  /* ── Sidebar — slides in from right ────────────────────────────────── */
-  .ctl-sidebar{
+  /* ── Line image — exact asset, screen blend so black bg disappears ── */
+  #tl-line-img{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    mix-blend-mode:screen;
+    display:block;
+    pointer-events:none;
+    user-select:none;
+    -webkit-user-drag:none;
+  }
+
+  /* ── Sidebar — slides from right ─────────────────────────────────── */
+  #tl-sidebar{
     position:absolute;
-    right:0;
-    top:16px;
-    bottom:16px;
-    width:90px;
-    background:rgba(10,10,10,0.90);
-    backdrop-filter:blur(18px);
-    -webkit-backdrop-filter:blur(18px);
-    border:1px solid rgba(255,255,255,0.05);
-    border-radius:22px;
-    box-shadow:-4px 0 24px rgba(0,0,0,0.42), -1px 0 8px rgba(0,0,0,0.28);
-    transform:translateX(calc(100% + 14px));
-    transition:transform 235ms ease-in-out;
+    right:8px;
+    top:8px;
+    bottom:8px;
+    width:260px;
+    background:rgba(11,11,11,0.93);
+    backdrop-filter:blur(24px);
+    -webkit-backdrop-filter:blur(24px);
+    border:1px solid rgba(255,255,255,0.07);
+    border-radius:18px;
+    box-shadow:-6px 0 40px rgba(0,0,0,0.55), 0 0 1px rgba(0,0,0,0.8);
+    transform:translateX(calc(100% + 24px));
+    transition:transform 230ms ease-in-out;
     will-change:transform;
     pointer-events:none;
     display:flex;
     flex-direction:column;
     overflow:hidden;
-    z-index:1;
+    z-index:101;
   }
-  .ctl-root.is-open .ctl-sidebar{
+  #tl-root.tl-open #tl-sidebar{
     transform:translateX(0);
     pointer-events:auto;
   }
 
-  /* ── Scrollable inner container ─────────────────────────────────────── */
-  .ctl-scroll{
+  /* ── Sidebar header ───────────────────────────────────────────────── */
+  #tl-hdr{
+    padding:16px 16px 10px;
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:0.01em;
+    color:rgba(255,255,255,0.88);
+    flex-shrink:0;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+
+  /* ── Scrollable area ──────────────────────────────────────────────── */
+  #tl-scroll{
     flex:1;
     overflow-y:auto;
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
   }
-  .ctl-scroll::-webkit-scrollbar{ width:2px; }
-  .ctl-scroll::-webkit-scrollbar-thumb{
-    background:rgba(120,200,65,0.25);
+  #tl-scroll::-webkit-scrollbar{ width:2px; }
+  #tl-scroll::-webkit-scrollbar-thumb{
+    background:rgba(120,200,65,0.28);
     border-radius:2px;
   }
 
-  /* ── Section wrapper ────────────────────────────────────────────────── */
-  .ctl-sec{ }
+  /* ── Section ──────────────────────────────────────────────────────── */
+  .tl-sec{}
 
-  /* ── Section header (sticky, collapsible) ───────────────────────────── */
-  .ctl-sec-hdr{
+  .tl-sec-hdr{
     position:sticky;
     top:0;
     z-index:2;
     display:flex;
     align-items:center;
     justify-content:space-between;
-    padding:9px 8px 4px 10px;
-    font-size:9px;
+    padding:10px 14px 5px;
+    font-size:10px;
     font-weight:700;
     letter-spacing:0.10em;
     text-transform:uppercase;
-    color:rgba(120,200,65,0.82);
-    background:rgba(10,10,10,0.96);
+    color:rgba(120,200,65,0.88);
+    background:rgba(11,11,11,0.97);
     cursor:pointer;
     user-select:none;
     -webkit-tap-highlight-color:transparent;
-    transition:color 0.14s ease;
+    transition:color 0.15s;
   }
-  .ctl-sec-hdr.is-collapsed{
+  .tl-sec-hdr.tl-collapsed{
     color:rgba(255,255,255,0.28);
   }
 
-  /* Chevron rotates 90° when section is collapsed */
-  .ctl-chevron{
-    font-size:7px;
+  .tl-chevron{
+    font-size:9px;
     opacity:0.65;
     display:inline-block;
-    line-height:1;
     transition:transform 180ms ease;
+    line-height:1;
   }
-  .ctl-sec-hdr.is-collapsed .ctl-chevron{
+  .tl-sec-hdr.tl-collapsed .tl-chevron{
     transform:rotate(-90deg);
   }
 
-  /* ── Items wrapper — max-height collapse animation ───────────────────── */
-  .ctl-sec-items{
-    max-height:600px;
+  .tl-sec-items{
+    max-height:1200px;
     overflow:hidden;
     transition:max-height 220ms ease-in-out, opacity 180ms ease;
     opacity:1;
   }
-  .ctl-sec-items.is-collapsed{
+  .tl-sec-items.tl-collapsed{
     max-height:0 !important;
     opacity:0;
   }
 
-  /* ── Empty section placeholder ──────────────────────────────────────── */
-  .ctl-sec-empty{
-    padding:4px 10px 8px 14px;
+  .tl-sec-empty{
+    padding:4px 14px 10px;
     font-size:9px;
     color:rgba(255,255,255,0.18);
     font-style:italic;
   }
 
-  /* ── Timeline item ───────────────────────────────────────────────────── */
-  .ctl-item{
+  /* ── Item row ─────────────────────────────────────────────────────── */
+  .tl-item{
     display:flex;
     align-items:center;
-    gap:5px;
-    padding:7px 8px 7px 10px;
+    gap:8px;
+    padding:9px 14px 9px 12px;
     cursor:pointer;
     border-left:2px solid transparent;
-    transition:background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    transition:background 0.15s, border-color 0.15s;
     -webkit-tap-highlight-color:transparent;
     user-select:none;
+    touch-action:manipulation;
   }
-  .ctl-item:hover{
-    background:rgba(255,255,255,0.035);
+  .tl-item:active{
+    background:rgba(255,255,255,0.04);
   }
-  .ctl-item.is-active{
+  .tl-item.tl-active{
     background:rgba(120,200,65,0.07);
-    border-left-color:rgba(120,200,65,0.52);
-    box-shadow:inset 0 0 14px rgba(120,200,65,0.07), 0 0 10px rgba(120,200,65,0.08);
+    border-left-color:rgba(120,200,65,0.55);
   }
 
-  /* Green timeline dot */
-  .ctl-dot{
-    width:5px;
-    height:5px;
+  .tl-dot{
+    width:6px;
+    height:6px;
     border-radius:50%;
-    background:rgba(120,200,65,0.32);
+    background:rgba(120,200,65,0.30);
     flex-shrink:0;
-    transition:background 0.14s ease, box-shadow 0.14s ease;
+    transition:background 0.12s, box-shadow 0.12s;
   }
-  .ctl-item.is-active .ctl-dot{
-    background:rgba(120,200,65,0.95);
-    box-shadow:0 0 7px rgba(120,200,65,0.65);
+  .tl-item.tl-active .tl-dot{
+    background:rgba(120,200,65,1);
+    box-shadow:0 0 7px rgba(120,200,65,0.70);
   }
 
-  /* Time on left + tiny duration on right — single horizontal row */
-  .ctl-info{
+  .tl-info{
     flex:1;
     min-width:0;
     display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:3px;
+    align-items:baseline;
+    gap:6px;
   }
-  .ctl-time{
-    font-size:9.5px;
-    color:rgba(255,255,255,0.50);
+  .tl-time{
+    font-size:11.5px;
+    color:rgba(255,255,255,0.52);
     font-weight:500;
     font-variant-numeric:tabular-nums;
     white-space:nowrap;
@@ -3520,41 +3540,41 @@
     text-overflow:ellipsis;
     letter-spacing:0.01em;
     line-height:1.3;
-    transition:color 0.12s ease;
+    transition:color 0.12s;
   }
-  .ctl-item.is-active .ctl-time{
-    color:rgba(255,255,255,0.90);
+  .tl-item.tl-active .tl-time{
+    color:rgba(255,255,255,0.92);
   }
-  .ctl-dur{
-    font-size:8px;
+  .tl-dur{
+    font-size:9px;
     color:rgba(255,255,255,0.22);
     white-space:nowrap;
     flex-shrink:0;
     font-variant-numeric:tabular-nums;
     line-height:1.2;
-    transition:color 0.12s ease;
+    transition:color 0.12s;
   }
-  .ctl-item.is-active .ctl-dur{
-    color:rgba(120,200,65,0.65);
+  .tl-item.tl-active .tl-dur{
+    color:rgba(120,200,65,0.62);
   }
 
-  /* ── Green glow animation on the scrolled-to message bubble ─────────── */
-  .ctl-msg-glow{
-    animation:ctlMsgGlow 1.6s ease-out forwards !important;
+  /* ── Glow on navigated-to message ────────────────────────────────── */
+  .tl-msg-glow{
+    animation:tlMsgGlow 1.4s ease-out forwards !important;
     border-radius:inherit;
   }
-  @keyframes ctlMsgGlow{
+  @keyframes tlMsgGlow{
     0%  { box-shadow:0 0 0 0 rgba(120,200,65,0); }
-    12% { box-shadow:0 0 18px 5px rgba(120,200,65,0.40); }
-    55% { box-shadow:0 0 16px 4px rgba(120,200,65,0.26); }
+    15% { box-shadow:0 0 20px 6px rgba(120,200,65,0.45); }
+    60% { box-shadow:0 0 14px 4px rgba(120,200,65,0.24); }
     100%{ box-shadow:0 0 0 0 rgba(120,200,65,0); }
   }
 
-  /* ── Reduced motion ──────────────────────────────────────────────────── */
-  @media (prefers-reduced-motion:reduce){
-    .ctl-handle, .ctl-sidebar{ transition-duration:0.01ms !important; }
-    .ctl-sec-items, .ctl-chevron{ transition-duration:0.01ms !important; }
-    .ctl-msg-glow{ animation-duration:0.01ms !important; }
+  /* ── Reduced motion ───────────────────────────────────────────────── */
+  @media(prefers-reduced-motion:reduce){
+    #tl-pill,#tl-sidebar{ transition-duration:0.01ms !important; }
+    .tl-sec-items,.tl-chevron{ transition-duration:0.01ms !important; }
+    .tl-msg-glow{ animation-duration:0.01ms !important; }
   }
 
 </style>
@@ -7298,259 +7318,279 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   // No other element on the page is affected.
   // ==========================================================
   // Prevent long-press "Download image" context menu on the chatbot mascot
-  // ── Timeline Sidebar (CTL) ────────────────────────────────────────────
-  // Production rewrite: single source of truth, animation lock, event
-  // delegation. All DOM refs cached once. Listeners registered exactly once.
-  (function setupTimeline(){
+  // ── Timeline Sidebar v2 ───────────────────────────────────────────────
+  // Complete ground-up rewrite. No shared code with any previous version.
+  // Single state object, animation lock, all listeners registered once.
+  (function(){
+    'use strict';
 
-    /* ── Cache DOM refs — never re-queried inside handlers ──────────── */
-    var root    = document.getElementById('ctlRoot');
-    var handle  = document.getElementById('timeline-handle');
-    var sidebar = document.getElementById('ctlSidebar');
-    var scroll  = document.getElementById('ctlScroll');
-    var msgs    = document.getElementById('chatMessages');
-    if(!root||!handle||!sidebar||!scroll||!msgs) return;
+    /* ── DOM refs cached once at startup ──────────────────────────── */
+    var tlRoot   = document.getElementById('tl-root');
+    var tlHandle = document.getElementById('tl-handle');
+    var tlSide   = document.getElementById('tl-sidebar');
+    var tlScroll = document.getElementById('tl-scroll');
+    var chatMsgs = document.getElementById('chatMessages');
+    if(!tlRoot||!tlHandle||!tlSide||!tlScroll||!chatMsgs) return;
 
-    /* ── Single source of truth ─────────────────────────────────────── */
-    var timelineState = { isOpen: false };
-    var animating     = false;
-    var ANIM_MS       = 260; /* CSS is 235ms + 25ms buffer */
+    /* ── Single source of truth ────────────────────────────────────── */
+    var TL = { isOpen: false, animating: false };
+    var ANIM_MS = 255; /* CSS 230 ms + small buffer */
 
-    /* ── Data ───────────────────────────────────────────────────────── */
-    var exchangeMap   = {};   /* idx (number) → exchange object */
-    var exchanges     = [];
-    var activeRow     = null;
-    var collapseState = { today:true, yesterday:false, monday:false, older:false };
+    /* ── Collapse memory — persists across open/close cycles ─────── */
+    var collapseState = { today: true, yesterday: false, older: false };
 
-    /* ── Time helpers ───────────────────────────────────────────────── */
-    function pad2(n){ return n<10?'0'+n:''+n; }
-    function fmtHHMM(d){ return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
-    function fmtDur(ms){
-      var s=Math.max(0,Math.round(ms/1000));
-      if(s<60) return s+' sec';
-      return Math.max(1,Math.round(s/60))+' min';
+    /* ── Exchange map — rebuilt each open ────────────────────────── */
+    var xMap = Object.create(null); /* numeric idx → exchange object */
+
+    /* ── Time helpers ─────────────────────────────────────────────── */
+    function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+
+    function fmt12(d){
+      var h = d.getHours(), m = d.getMinutes();
+      var ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return h + ':' + pad2(m) + ' ' + ampm;
     }
+
+    /* Smart time string: single or range, smart AM/PM dedup */
+    function fmtTimeStr(t1, t2){
+      if(!t1) return '--:--';
+      if(!t2) return fmt12(t1);
+      var sameMinute = (t1.getHours()===t2.getHours() && t1.getMinutes()===t2.getMinutes());
+      if(sameMinute) return fmt12(t1);
+      var ap1 = t1.getHours() >= 12 ? 'PM' : 'AM';
+      var ap2 = t2.getHours() >= 12 ? 'PM' : 'AM';
+      var h1 = t1.getHours()%12||12, m1 = t1.getMinutes();
+      var h2 = t2.getHours()%12||12, m2 = t2.getMinutes();
+      if(ap1 === ap2){
+        return h1+':'+pad2(m1)+'\u2013'+h2+':'+pad2(m2)+' '+ap1;
+      }
+      return fmt12(t1)+'\u2013'+fmt12(t2);
+    }
+
+    function fmtDur(ms){
+      var s = Math.max(0, Math.round(ms/1000));
+      if(s < 60) return s + ' sec';
+      return Math.max(1, Math.round(s/60)) + ' min';
+    }
+
     function parseTime(str){
       if(!str) return null;
-      var m=str.match(/(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i);
+      var m = str.match(/(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i);
       if(!m) return null;
-      var h=parseInt(m[1],10), min=parseInt(m[2],10);
-      var ap=(m[3]||'').toUpperCase();
-      if(ap==='PM'&&h!==12) h+=12;
-      if(ap==='AM'&&h===12) h=0;
-      var d=new Date(); d.setHours(h,min,0,0); return d;
+      var h = parseInt(m[1],10), mn = parseInt(m[2],10);
+      var ap = (m[3]||'').toUpperCase();
+      if(ap==='PM' && h!==12) h += 12;
+      if(ap==='AM' && h===12) h = 0;
+      var d = new Date(); d.setHours(h, mn, 0, 0); return d;
     }
 
-    /* ── Build exchange pairs from DOM ──────────────────────────────── */
+    /* ── Read exchanges from live DOM ──────────────────────────────── */
     function readExchanges(){
-      var wraps=Array.from(msgs.querySelectorAll('.chat-msg-wrap'));
-      var result=[]; var i=0, idx=0;
-      while(i<wraps.length){
-        var w=wraps[i];
+      var wraps = Array.from(chatMsgs.querySelectorAll('.chat-msg-wrap'));
+      var result = []; var i = 0, idx = 0;
+      while(i < wraps.length){
+        var w = wraps[i];
         if(w.classList.contains('user')){
-          var ex={userEl:w, botEl:null, idx:idx};
-          if(i+1<wraps.length&&!wraps[i+1].classList.contains('user')){
-            ex.botEl=wraps[i+1]; i+=2;
+          var ex = { userEl:w, botEl:null, idx:idx };
+          if(i+1 < wraps.length && !wraps[i+1].classList.contains('user')){
+            ex.botEl = wraps[i+1]; i += 2;
           } else { i++; }
-          var t1=parseTime((w.querySelector('.chat-time')||{}).textContent);
-          var t2=ex.botEl?parseTime((ex.botEl.querySelector('.chat-time')||{}).textContent):null;
-          if(t1&&t2&&(t2-t1)>=60000){
-            ex.timeStr=fmtHHMM(t1)+'\u2013'+fmtHHMM(t2);
-            ex.durMs=t2-t1;
-          } else {
-            ex.timeStr=t1?fmtHHMM(t1):'--:--';
-            ex.durMs=t1&&t2?(t2-t1):0;
-          }
-          ex.msgBubble=w.querySelector('.chat-msg')||w;
-          w._ctlIdx=idx;
+          var t1 = parseTime((w.querySelector('.chat-time')||{}).textContent);
+          var t2 = ex.botEl
+            ? parseTime((ex.botEl.querySelector('.chat-time')||{}).textContent)
+            : null;
+          ex.timeStr = fmtTimeStr(t1, t2);
+          ex.durMs   = (t1 && t2) ? Math.max(0, t2-t1) : 0;
+          ex.bubble  = w.querySelector('.chat-msg') || w;
+          w._tlIdx   = idx;
           result.push(ex); idx++;
         } else { i++; }
       }
       return result;
     }
 
-    /* ── Render sidebar — NO inline listeners (delegation handles all) ─ */
+    /* ── Build sidebar DOM (zero inline listeners) ─────────────────── */
     function buildSidebar(){
-      exchanges=readExchanges();
-      exchangeMap={};
-      exchanges.forEach(function(ex){ exchangeMap[ex.idx]=ex; });
-      scroll.innerHTML='';
-      activeRow=null;
+      var exchanges = readExchanges();
+      xMap = Object.create(null);
+      exchanges.forEach(function(ex){ xMap[ex.idx] = ex; });
+      tlScroll.innerHTML = '';
 
-      var buckets={today:exchanges.slice().reverse(),yesterday:[],monday:[],older:[]};
-      var defs=[
-        {key:'today',    label:'Today'},
-        {key:'yesterday',label:'Yesterday'},
-        {key:'monday',   label:'Monday'},
-        {key:'older',    label:'Older'}
+      /* All current-session messages → Today bucket */
+      var buckets = { today: exchanges.slice().reverse(), yesterday: [], older: [] };
+      var sections = [
+        { key:'today',     label:'Today'     },
+        { key:'yesterday', label:'Yesterday' },
+        { key:'older',     label:'Older'     }
       ];
 
-      defs.forEach(function(def){
-        var items   =buckets[def.key];
-        var expanded=collapseState[def.key];
+      sections.forEach(function(sec){
+        var expanded = collapseState[sec.key];
+        var items    = buckets[sec.key];
 
-        var secWrap=document.createElement('div');
-        secWrap.className='ctl-sec';
+        var wrap = document.createElement('div');
+        wrap.className = 'tl-sec';
 
-        var hdr=document.createElement('div');
-        hdr.className='ctl-sec-hdr'+(expanded?'':' is-collapsed');
-        hdr.dataset.secKey=def.key;
-        var lbl=document.createElement('span'); lbl.textContent=def.label;
-        var chv=document.createElement('span'); chv.className='ctl-chevron'; chv.textContent='\u25be';
+        /* Header */
+        var hdr = document.createElement('div');
+        hdr.className = 'tl-sec-hdr' + (expanded ? '' : ' tl-collapsed');
+        hdr.dataset.secKey = sec.key;
+        var lbl = document.createElement('span'); lbl.textContent = sec.label;
+        var chv = document.createElement('span');
+        chv.className = 'tl-chevron'; chv.textContent = '\u25be';
         hdr.appendChild(lbl); hdr.appendChild(chv);
 
-        var iw=document.createElement('div');
-        iw.className='ctl-sec-items'+(expanded?'':' is-collapsed');
+        /* Items wrapper */
+        var iw = document.createElement('div');
+        iw.className = 'tl-sec-items' + (expanded ? '' : ' tl-collapsed');
 
         if(!items.length){
-          var emp=document.createElement('div');
-          emp.className='ctl-sec-empty'; emp.textContent='None';
+          var emp = document.createElement('div');
+          emp.className = 'tl-sec-empty'; emp.textContent = 'None';
           iw.appendChild(emp);
         } else {
           items.forEach(function(ex){
-            var row=document.createElement('div');
-            row.className='ctl-item';
-            row.dataset.idx=ex.idx;
-            var dot=document.createElement('div'); dot.className='ctl-dot';
-            var info=document.createElement('div'); info.className='ctl-info';
-            var td=document.createElement('div'); td.className='ctl-time'; td.textContent=ex.timeStr;
-            info.appendChild(td);
-            if(ex.durMs>0){
-              var dd=document.createElement('div'); dd.className='ctl-dur';
-              dd.textContent=fmtDur(ex.durMs); info.appendChild(dd);
+            var row = document.createElement('div');
+            row.className = 'tl-item';
+            row.dataset.idx = ex.idx;
+
+            var dot  = document.createElement('div'); dot.className = 'tl-dot';
+            var info = document.createElement('div'); info.className = 'tl-info';
+            var ts   = document.createElement('span'); ts.className = 'tl-time';
+            ts.textContent = ex.timeStr;
+            info.appendChild(ts);
+            if(ex.durMs > 0){
+              var ds = document.createElement('span'); ds.className = 'tl-dur';
+              ds.textContent = fmtDur(ex.durMs);
+              info.appendChild(ds);
             }
             row.appendChild(dot); row.appendChild(info);
             iw.appendChild(row);
           });
         }
 
-        secWrap.appendChild(hdr); secWrap.appendChild(iw);
-        scroll.appendChild(secWrap);
+        wrap.appendChild(hdr); wrap.appendChild(iw);
+        tlScroll.appendChild(wrap);
       });
     }
 
-    /* ── Navigate to an exchange ────────────────────────────────────── */
-    function onItemClick(ex){
-      closeTimeline();
+    /* ── Navigate to message ───────────────────────────────────────── */
+    function navigateTo(ex){
+      tlClose(); /* starts close animation */
       setTimeout(function(){
         if(!ex.userEl) return;
-        ex.userEl.scrollIntoView({behavior:'smooth',block:'start'});
+        ex.userEl.scrollIntoView({ behavior:'smooth', block:'start' });
         setTimeout(function(){
-          var bub=ex.msgBubble;
-          if(!bub) return;
-          bub.classList.remove('ctl-msg-glow');
-          void bub.offsetWidth; /* force reflow so animation restarts */
-          bub.classList.add('ctl-msg-glow');
-          bub.addEventListener('animationend',function h(){
-            bub.classList.remove('ctl-msg-glow');
-            bub.removeEventListener('animationend',h);
+          var b = ex.bubble; if(!b) return;
+          b.classList.remove('tl-msg-glow');
+          void b.offsetWidth; /* reflow to restart animation */
+          b.classList.add('tl-msg-glow');
+          b.addEventListener('animationend', function h(){
+            b.classList.remove('tl-msg-glow');
+            b.removeEventListener('animationend', h);
           });
-        }, 130);
-      }, 250);
+        }, 160);
+      }, 260);
     }
 
-    /* ── Auto-tracking via IntersectionObserver ─────────────────────── */
-    var trackedEls=[];
-    var ioObs=new IntersectionObserver(function(entries){
-      if(!timelineState.isOpen) return;
-      var best=null, bestRatio=0;
+    /* ── IntersectionObserver — highlights active item ─────────────── */
+    var tracked = [];
+    var io = new IntersectionObserver(function(entries){
+      if(!TL.isOpen) return;
+      var best = null, bestR = 0;
       entries.forEach(function(e){
-        if(e.isIntersecting&&e.intersectionRatio>bestRatio){
-          bestRatio=e.intersectionRatio; best=e;
+        if(e.isIntersecting && e.intersectionRatio > bestR){
+          bestR = e.intersectionRatio; best = e;
         }
       });
       if(!best) return;
-      var idx=best.target._ctlIdx;
-      if(idx===undefined) return;
-      var row=scroll.querySelector('.ctl-item[data-idx="'+idx+'"]');
-      if(!row||row===activeRow) return;
-      if(activeRow) activeRow.classList.remove('is-active');
-      activeRow=row; row.classList.add('is-active');
-    },{root:msgs,threshold:[0.25,0.5,0.75]});
+      var idx = best.target._tlIdx;
+      if(idx === undefined) return;
+      var prev = tlScroll.querySelector('.tl-item.tl-active');
+      var next = tlScroll.querySelector('.tl-item[data-idx="' + idx + '"]');
+      if(!next || next === prev) return;
+      if(prev) prev.classList.remove('tl-active');
+      next.classList.add('tl-active');
+    }, { root: chatMsgs, threshold: [0.25, 0.5, 0.75] });
 
-    function observeAll(){
-      trackedEls.forEach(function(el){ ioObs.unobserve(el); });
-      trackedEls=[];
-      msgs.querySelectorAll('.chat-msg-wrap.user').forEach(function(w,i){
-        w._ctlIdx=i; ioObs.observe(w); trackedEls.push(w);
+    function reobserve(){
+      tracked.forEach(function(el){ io.unobserve(el); });
+      tracked = [];
+      chatMsgs.querySelectorAll('.chat-msg-wrap.user').forEach(function(w, i){
+        w._tlIdx = i; io.observe(w); tracked.push(w);
       });
     }
 
-    /* ── Open ────────────────────────────────────────────────────────── */
-    function openTimeline(){
-      if(timelineState.isOpen||animating) return;
-      animating=true;
-      timelineState.isOpen=true;
-      buildSidebar(); observeAll();
-      root.classList.add('is-open');
-      sidebar.setAttribute('aria-hidden','false');
-      handle.setAttribute('aria-expanded','true');
-      handle.setAttribute('aria-label','Close message timeline');
-      setTimeout(function(){ animating=false; }, ANIM_MS);
+    /* ── Open ─────────────────────────────────────────────────────── */
+    function tlOpen(){
+      if(TL.isOpen || TL.animating) return;
+      TL.animating = true;
+      TL.isOpen    = true;
+      buildSidebar();
+      reobserve();
+      tlRoot.classList.add('tl-open');
+      tlSide.setAttribute('aria-hidden', 'false');
+      tlHandle.setAttribute('aria-expanded', 'true');
+      tlHandle.setAttribute('aria-label', 'Close message timeline');
+      setTimeout(function(){ TL.animating = false; }, ANIM_MS);
     }
 
-    /* ── Close ───────────────────────────────────────────────────────── */
-    function closeTimeline(){
-      if(!timelineState.isOpen||animating) return;
-      animating=true;
-      timelineState.isOpen=false;
-      root.classList.remove('is-open');
-      sidebar.setAttribute('aria-hidden','true');
-      handle.setAttribute('aria-expanded','false');
-      handle.setAttribute('aria-label','Open message timeline');
-      setTimeout(function(){ animating=false; }, ANIM_MS);
+    /* ── Close ────────────────────────────────────────────────────── */
+    function tlClose(){
+      if(!TL.isOpen || TL.animating) return;
+      TL.animating = true;
+      TL.isOpen    = false;
+      tlRoot.classList.remove('tl-open');
+      tlSide.setAttribute('aria-hidden', 'true');
+      tlHandle.setAttribute('aria-expanded', 'false');
+      tlHandle.setAttribute('aria-label', 'Open message timeline');
+      setTimeout(function(){ TL.animating = false; }, ANIM_MS);
     }
 
-    /* ═══════════════════════════════════════════════════════════════════
-       EVENT LISTENERS — registered exactly ONCE, never inside render
-       ═══════════════════════════════════════════════════════════════════ */
+    /* ══════════════════════════════════════════════════════════════════
+       LISTENERS — registered ONCE at startup, NEVER inside render
+       ══════════════════════════════════════════════════════════════════ */
 
-    /* 1. Handle button — sole open/close trigger */
-    handle.addEventListener('click', function(e){
+    /* 1 ── Handle: toggle open/close */
+    tlHandle.addEventListener('click', function(e){
       e.stopPropagation();
-      timelineState.isOpen ? closeTimeline() : openTimeline();
+      TL.isOpen ? tlClose() : tlOpen();
     });
 
-    /* 2. Keyboard support on the native button (Enter/Space are free) */
-    /* <button> already fires click on Enter/Space — no extra keydown needed */
+    /* 2 ── Outside tap: close (capture so it fires before other handlers) */
+    document.addEventListener('click', function(e){
+      if(!TL.isOpen || TL.animating) return;
+      if(tlRoot.contains(e.target)) return; /* inside widget — ignore */
+      tlClose();
+    }, true);
 
-    /* 3. Overlay close — tap on messages area outside sidebar */
-    msgs.addEventListener('click', function(e){
-      if(!timelineState.isOpen||animating) return;
-      if(sidebar.contains(e.target)||handle.contains(e.target)) return;
-      closeTimeline();
-    });
-
-    /* 4. Delegated scroll clicks — section headers AND items in one handler */
-    scroll.addEventListener('click', function(e){
-      /* Section header collapse/expand */
-      var hdr=e.target.closest('.ctl-sec-hdr');
+    /* 3 ── Delegated: section collapse + item navigation (one handler) */
+    tlScroll.addEventListener('click', function(e){
+      /* Section header */
+      var hdr = e.target.closest('.tl-sec-hdr');
       if(hdr){
-        var key=hdr.dataset.secKey;
-        if(!key) return;
-        var expanding=hdr.classList.contains('is-collapsed');
-        collapseState[key]=expanding;
-        hdr.classList.toggle('is-collapsed');
-        /* iw is always the immediate next sibling of hdr */
-        var iw=hdr.nextElementSibling;
-        if(iw) iw.classList.toggle('is-collapsed');
+        var key = hdr.dataset.secKey; if(!key) return;
+        var expanding = hdr.classList.contains('tl-collapsed');
+        collapseState[key] = expanding;
+        hdr.classList.toggle('tl-collapsed');
+        var iw = hdr.nextElementSibling;
+        if(iw) iw.classList.toggle('tl-collapsed');
         return;
       }
-      /* Timeline item navigation */
-      var item=e.target.closest('.ctl-item');
+      /* Item */
+      var item = e.target.closest('.tl-item');
       if(item){
-        var idx=parseInt(item.dataset.idx,10);
-        if(isNaN(idx)) return;
-        var ex=exchangeMap[idx];
-        if(ex) onItemClick(ex);
+        var idx = parseInt(item.dataset.idx, 10);
+        if(!isNaN(idx) && xMap[idx]) navigateTo(xMap[idx]);
       }
     });
 
-    /* 5. DOM observer — refresh data when messages arrive */
+    /* 4 ── DOM mutation: refresh data when messages arrive */
     new MutationObserver(function(){
-      observeAll();
-      if(timelineState.isOpen) buildSidebar();
-    }).observe(msgs,{childList:true});
+      reobserve();
+      if(TL.isOpen) buildSidebar();
+    }).observe(chatMsgs, { childList:true });
 
   })();
 
@@ -7679,19 +7719,18 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   <div class="chat-panel-bg" aria-hidden="true">
   </div>
 
-  <!-- ── Timeline Sidebar (CTL) ─────────────────────────────────────────
-       Handle = FLICO white vertical rounded line on right edge.
-       Tap → line rotates 45° CW + sidebar slides from right simultaneously.
-       ─────────────────────────────────────────────────────────────────── -->
-  <div class="ctl-root" id="ctlRoot">
-    <!-- Native button — the ONLY interactive element for open/close -->
-    <button class="ctl-hit" id="timeline-handle"
-            aria-label="Open message timeline" aria-expanded="false">
-      <div class="ctl-handle" aria-hidden="true"></div>
+  <!-- ── Timeline Sidebar v2 ──────────────────────────────────────────── -->
+  <div id="tl-root">
+    <!-- Glass-morph pill — sole open/close trigger -->
+    <button id="tl-handle" aria-label="Open message timeline" aria-expanded="false">
+      <span id="tl-pill" aria-hidden="true">
+        <img id="tl-line-img" src="/assets/tl-line.png" alt="" draggable="false">
+      </span>
     </button>
-    <!-- Sidebar slides in from right -->
-    <div class="ctl-sidebar" id="ctlSidebar" aria-hidden="true">
-      <div class="ctl-scroll" id="ctlScroll"></div>
+    <!-- Sidebar -->
+    <div id="tl-sidebar" aria-hidden="true">
+      <div id="tl-hdr">Timeline</div>
+      <div id="tl-scroll"></div>
     </div>
   </div>
 
