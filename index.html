@@ -3289,6 +3289,179 @@
   }
   /* ═══════════════════════════════════════════════════════════════════ */
 
+  /* ============================================================
+     Composer glass-morph alignment fix
+     The outer .chat-input-row inherited border-radius:999px from
+     an earlier cascade layer while .chat-input-inner stays at
+     28px — the two shapes look completely disconnected. Fix: set
+     outer radius to inner (28px) + padding (8px) = 36px so both
+     arcs are perfectly concentric at every height. No other
+     values (colour, blur, shadow, spacing) are changed.
+     ============================================================ */
+  .chat-input-row{
+    border-radius:36px !important;
+  }
+
+  /* ============================================================
+     Timeline Sidebar  (CTT = Chat Timeline)
+     A ChatGPT-style message history panel anchored to the left
+     edge of the chat panel. Closed state: narrow vertical pill.
+     Open state: slides in from the left. No redesign of any
+     existing element — new elements only.
+     ============================================================ */
+
+  /* Root overlay — covers the full chat-panel interior so the
+     sidebar can slide over messages without affecting layout.
+     pointer-events:none lets clicks pass through when closed. */
+  .ctt-root{
+    position:absolute;
+    left:0; top:0; right:0; bottom:0;
+    z-index:22;
+    pointer-events:none;
+  }
+
+  /* Pill trigger — tiny 7px-wide rounded bar on the left edge,
+     vertically centred in the panel. Green accent via gradient.
+     Rotates 90° clockwise when the sidebar opens.             */
+  .ctt-pill{
+    position:absolute;
+    left:9px;
+    top:50%;
+    transform:translateY(-50%) rotate(0deg);
+    width:7px;
+    height:44px;
+    border-radius:999px;
+    background:linear-gradient(180deg,
+      rgba(22,22,22,0.92) 25%,
+      rgba(120,200,65,0.60) 50%,
+      rgba(22,22,22,0.92) 75%
+    );
+    border:1px solid rgba(255,255,255,0.10);
+    box-shadow:0 2px 8px rgba(0,0,0,0.45);
+    cursor:pointer;
+    pointer-events:auto;
+    padding:0;
+    margin:0;
+    transition:transform 220ms ease-in-out;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .ctt-pill.is-rotated{
+    transform:translateY(-50%) rotate(90deg);
+  }
+
+  /* Sidebar panel — slides in from the left. pointer-events:none
+     while collapsed so no invisible tap-target hangs around.   */
+  .ctt-panel{
+    position:absolute;
+    left:0; top:0; bottom:0;
+    width:78%;
+    max-width:272px;
+    background:rgba(12,12,12,0.97);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    border-right:1px solid rgba(255,255,255,0.07);
+    transform:translateX(-100%);
+    transition:transform 260ms ease-in-out;
+    pointer-events:none;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .ctt-panel.is-expanded{
+    transform:translateX(0);
+    pointer-events:auto;
+  }
+
+  /* Panel header label */
+  .ctt-panel-hdr{
+    padding:18px 16px 10px;
+    font-size:10px;
+    font-weight:600;
+    letter-spacing:0.11em;
+    text-transform:uppercase;
+    color:rgba(255,255,255,0.30);
+    border-bottom:1px solid rgba(255,255,255,0.06);
+    flex-shrink:0;
+    user-select:none;
+  }
+
+  /* Scrollable message list */
+  .ctt-panel-list{
+    flex:1;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:4px 0;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  .ctt-panel-list::-webkit-scrollbar{ width:3px; }
+  .ctt-panel-list::-webkit-scrollbar-thumb{
+    background:rgba(120,200,65,0.22);
+    border-radius:3px;
+  }
+
+  /* Empty-state placeholder */
+  .ctt-empty{
+    padding:24px 14px;
+    font-size:12px;
+    color:rgba(255,255,255,0.22);
+    text-align:center;
+    user-select:none;
+  }
+
+  /* Individual timeline item */
+  .ctt-item{
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+    padding:9px 14px 9px 16px;
+    cursor:pointer;
+    border-left:2px solid transparent;
+    transition:background 0.13s ease, border-color 0.13s ease;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
+  }
+  .ctt-item:hover{
+    background:rgba(255,255,255,0.04);
+  }
+  .ctt-item:active{
+    background:rgba(255,255,255,0.06);
+  }
+  /* Active (selected) item */
+  .ctt-item.is-active{
+    background:rgba(120,200,65,0.07);
+    border-left-color:rgba(120,200,65,0.45);
+  }
+
+  /* Timestamp line */
+  .ctt-item-time{
+    font-size:10px;
+    color:rgba(255,255,255,0.26);
+    font-weight:500;
+    letter-spacing:0.01em;
+    line-height:1;
+  }
+  /* Message preview — one line, truncated */
+  .ctt-item-preview{
+    font-size:12.5px;
+    color:rgba(255,255,255,0.55);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    line-height:1.35;
+    font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  /* User messages are slightly brighter */
+  .ctt-item.is-user .ctt-item-preview{
+    color:rgba(255,255,255,0.76);
+  }
+
+  /* Reduced-motion: kill both animations */
+  @media (prefers-reduced-motion:reduce){
+    .ctt-pill{ transition-duration:0.01ms !important; }
+    .ctt-panel{ transition-duration:0.01ms !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -6677,6 +6850,15 @@ Every reply should feel like it comes directly from the official FLICO team.`;
       const trimmed = text.trim();
       if(!trimmed) return;
 
+      // ── TRACE ──────────────────────────────────────────────────────────────
+      // Unique ID scoped to this message send. Stored on window so downstream
+      // functions (attemptAssistantReply, streamAssistantReply) can read it
+      // without changing their signatures. Logging only — zero behavior change.
+      const _reqId = 'R' + Date.now().toString(36).slice(-5).toUpperCase();
+      window._flicoTraceId = _reqId;
+      console.log('[TRACE][' + _reqId + '] 1. sendMessage entered | text="' + trimmed.slice(0, 80) + '"');
+      // ── END TRACE ──────────────────────────────────────────────────────────
+
       // Interrupt any in-progress stream: abort the fetch so no more chunks
       // arrive, then freeze the active typewriter bubble so the already-typed
       // partial response stays visible instead of disappearing. A new prompt
@@ -6710,6 +6892,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 
       const ctx = { isFirst: isFirstMessage, lastIntentId: getLastIntent(), lastRaw: trimmed };
       const result = getResponse(trimmed, ctx);
+      console.log('[TRACE][' + _reqId + '] 2. getResponse result | intentId=' + result.intentId + ' | route=' + result.route + ' | lang=' + result.lang); // TRACE
 
       if(result.route === 'local'){
         // Deterministic KB / conversational-fallback reply — types itself out
@@ -7020,6 +7203,120 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   // No other element on the page is affected.
   // ==========================================================
   // Prevent long-press "Download image" context menu on the chatbot mascot
+  // ── Timeline Sidebar ──────────────────────────────────────────────────
+  // Builds and maintains a scrollable list of all chat messages.
+  // Open: pill rotates 90° CW + panel expands simultaneously.
+  // Close: panel collapses (260ms), then pill rotates back (220ms).
+  (function setupTimeline(){
+    var root  = document.getElementById('chatTimeline');
+    var pill  = document.getElementById('chatTimelinePill');
+    var panel = document.getElementById('chatTimelinePanel');
+    var list  = document.getElementById('chatTimelineList');
+    var msgs  = document.getElementById('chatMessages');
+    if(!root || !pill || !panel || !list || !msgs) return;
+
+    var isOpen      = false;
+    var isAnimating = false;
+    var closeTimer  = null;
+    var activeItem  = null;
+
+    /* Build or rebuild the full item list from current DOM messages. */
+    function buildList(){
+      var wraps = msgs.querySelectorAll('.chat-msg-wrap');
+      list.innerHTML = '';
+      activeItem = null;
+
+      if(!wraps.length){
+        var empty = document.createElement('div');
+        empty.className = 'ctt-empty';
+        empty.textContent = 'No messages yet.';
+        list.appendChild(empty);
+        return;
+      }
+
+      wraps.forEach(function(wrap){
+        var role   = wrap.classList.contains('user') ? 'user' : 'bot';
+        var timeEl = wrap.querySelector('.chat-time');
+        var msgEl  = wrap.querySelector('.chat-msg');
+        if(!msgEl) return;
+
+        var t = timeEl ? timeEl.textContent.trim() : '';
+        var p = (msgEl.textContent || '').trim().replace(/\s+/g,' ');
+
+        var item = document.createElement('div');
+        item.className = 'ctt-item' + (role === 'user' ? ' is-user' : '');
+
+        var timeDiv = document.createElement('div');
+        timeDiv.className = 'ctt-item-time';
+        timeDiv.textContent = t;
+
+        var prevDiv = document.createElement('div');
+        prevDiv.className = 'ctt-item-preview';
+        prevDiv.textContent = p;
+
+        item.appendChild(timeDiv);
+        item.appendChild(prevDiv);
+
+        /* Click: scroll to that message and highlight this item. */
+        item.addEventListener('click', function(){
+          wrap.scrollIntoView({ behavior:'smooth', block:'nearest' });
+          if(activeItem) activeItem.classList.remove('is-active');
+          activeItem = item;
+          item.classList.add('is-active');
+        });
+
+        list.appendChild(item);
+      });
+    }
+
+    function openTimeline(){
+      if(isOpen) return;
+      clearTimeout(closeTimer);
+      isAnimating = false;
+      isOpen = true;
+      buildList();
+      /* Both animations start at the same instant. */
+      pill.classList.add('is-rotated');
+      panel.classList.add('is-expanded');
+      panel.setAttribute('aria-hidden','false');
+      pill.setAttribute('aria-expanded','true');
+      root.setAttribute('aria-hidden','false');
+    }
+
+    function closeTimeline(){
+      if(!isOpen || isAnimating) return;
+      isOpen      = false;
+      isAnimating = true;
+      /* Phase 1 — collapse panel (260ms). */
+      panel.classList.remove('is-expanded');
+      panel.setAttribute('aria-hidden','true');
+      pill.setAttribute('aria-expanded','false');
+      root.setAttribute('aria-hidden','true');
+      /* Phase 2 — after panel collapses, rotate pill back (220ms). */
+      clearTimeout(closeTimer);
+      closeTimer = setTimeout(function(){
+        pill.classList.remove('is-rotated');
+        isAnimating = false;
+      }, 260);
+    }
+
+    /* Toggle on pill click. */
+    pill.addEventListener('click', function(){
+      if(isOpen) closeTimeline(); else openTimeline();
+    });
+
+    /* Tap on messages area closes the sidebar. */
+    msgs.addEventListener('click', function(e){
+      if(isOpen && !panel.contains(e.target)) closeTimeline();
+    });
+
+    /* Refresh list whenever new messages are appended. */
+    var observer = new MutationObserver(function(){
+      if(isOpen) buildList();
+    });
+    observer.observe(msgs, { childList:true });
+  })();
+
   (function protectMascotIcon(){
     const mascot = document.getElementById('mascotFigure');
     if(!mascot) return;
@@ -7144,6 +7441,22 @@ Every reply should feel like it comes directly from the official FLICO team.`;
 <div class="chat-panel" id="chatPanel" role="dialog" aria-modal="true" aria-label="FLICO Assistant chat" aria-hidden="true">
   <div class="chat-panel-bg" aria-hidden="true">
   </div>
+
+  <!-- ── Timeline Sidebar ──────────────────────────────────────────────
+       Closed state: 7px pill on the left edge.
+       Open state:   sidebar slides in from the left (JS-driven class toggles).
+       ──────────────────────────────────────────────────────────────── -->
+  <div class="ctt-root" id="chatTimeline" aria-hidden="true">
+    <button class="ctt-pill" id="chatTimelinePill"
+            type="button"
+            aria-label="Open message timeline"
+            aria-expanded="false"></button>
+    <div class="ctt-panel" id="chatTimelinePanel" aria-hidden="true">
+      <div class="ctt-panel-hdr">Timeline</div>
+      <div class="ctt-panel-list" id="chatTimelineList"></div>
+    </div>
+  </div>
+
   <div class="chat-header">
     <div class="chat-header-info">
       <div class="chat-avatar" id="chatAvatar" role="img" aria-label="FLICO Assistant" draggable="false" oncontextmenu="return false"></div>
