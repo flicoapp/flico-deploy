@@ -3303,163 +3303,243 @@
   }
 
   /* ============================================================
-     Timeline Sidebar  (CTT = Chat Timeline)
-     A ChatGPT-style message history panel anchored to the left
-     edge of the chat panel. Closed state: narrow vertical pill.
-     Open state: slides in from the left. No redesign of any
-     existing element — new elements only.
+     Timeline Sidebar  (CTL)
+     Handle = FLICO white vertical rounded line on the RIGHT edge.
+     Sidebar slides from right. Width ≈ 90px. New elements only.
      ============================================================ */
 
-  /* Root overlay — covers the full chat-panel interior so the
-     sidebar can slide over messages without affecting layout.
-     pointer-events:none lets clicks pass through when closed. */
-  .ctt-root{
+  /* ── Root — absolute overlay inside chat-panel ────────────────────── */
+  .ctl-root{
     position:absolute;
-    left:0; top:0; right:0; bottom:0;
-    z-index:22;
-    pointer-events:none;
+    inset:0;
+    z-index:20;
+    pointer-events:none; /* children opt in */
   }
 
-  /* Pill trigger — tiny 7px-wide rounded bar on the left edge,
-     vertically centred in the panel. Green accent via gradient.
-     Rotates 90° clockwise when the sidebar opens.             */
-  .ctt-pill{
+  /* ── Hit zone — invisible 40×80px tap target centred on the handle ── */
+  .ctl-hit{
     position:absolute;
-    left:9px;
+    right:0;
     top:50%;
-    transform:translateY(-50%) rotate(0deg);
-    width:7px;
-    height:44px;
-    border-radius:999px;
-    background:linear-gradient(180deg,
-      rgba(22,22,22,0.92) 25%,
-      rgba(120,200,65,0.60) 50%,
-      rgba(22,22,22,0.92) 75%
-    );
-    border:1px solid rgba(255,255,255,0.10);
-    box-shadow:0 2px 8px rgba(0,0,0,0.45);
+    transform:translateY(-50%);
+    width:40px;
+    height:80px;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    padding-right:9px;
+    box-sizing:border-box;
     cursor:pointer;
     pointer-events:auto;
-    padding:0;
-    margin:0;
-    transition:transform 220ms ease-in-out;
+    z-index:2; /* above sidebar so tap always lands here */
     -webkit-tap-highlight-color:transparent;
   }
-  .ctt-pill.is-rotated{
-    transform:translateY(-50%) rotate(90deg);
+
+  /* ── The FLICO white vertical rounded line — the handle ────────────── */
+  .ctl-handle{
+    width:3px;
+    height:38px;
+    border-radius:99px;
+    background:rgba(255,255,255,0.82);
+    box-shadow:0 0 8px rgba(255,255,255,0.10), 0 1px 6px rgba(0,0,0,0.36);
+    flex-shrink:0;
+    transform:rotate(0deg);
+    transform-origin:center center;
+    transition:transform 235ms ease-in-out;
+    will-change:transform;
+    pointer-events:none;
+  }
+  .ctl-root.is-open .ctl-handle{
+    transform:rotate(45deg);
   }
 
-  /* Sidebar panel — slides in from the left. pointer-events:none
-     while collapsed so no invisible tap-target hangs around.   */
-  .ctt-panel{
+  /* ── Sidebar — slides in from right ────────────────────────────────── */
+  .ctl-sidebar{
     position:absolute;
-    left:0; top:0; bottom:0;
-    width:78%;
-    max-width:272px;
-    background:rgba(12,12,12,0.97);
-    backdrop-filter:blur(6px);
-    -webkit-backdrop-filter:blur(6px);
-    border-right:1px solid rgba(255,255,255,0.07);
-    transform:translateX(-100%);
-    transition:transform 260ms ease-in-out;
+    right:0;
+    top:16px;
+    bottom:16px;
+    width:90px;
+    background:rgba(10,10,10,0.90);
+    backdrop-filter:blur(18px);
+    -webkit-backdrop-filter:blur(18px);
+    border:1px solid rgba(255,255,255,0.05);
+    border-radius:22px;
+    box-shadow:-4px 0 24px rgba(0,0,0,0.42), -1px 0 8px rgba(0,0,0,0.28);
+    transform:translateX(calc(100% + 14px));
+    transition:transform 235ms ease-in-out;
+    will-change:transform;
     pointer-events:none;
     display:flex;
     flex-direction:column;
     overflow:hidden;
+    z-index:1;
   }
-  .ctt-panel.is-expanded{
+  .ctl-root.is-open .ctl-sidebar{
     transform:translateX(0);
     pointer-events:auto;
   }
 
-  /* Panel header label */
-  .ctt-panel-hdr{
-    padding:18px 16px 10px;
-    font-size:10px;
-    font-weight:600;
-    letter-spacing:0.11em;
-    text-transform:uppercase;
-    color:rgba(255,255,255,0.30);
-    border-bottom:1px solid rgba(255,255,255,0.06);
-    flex-shrink:0;
-    user-select:none;
-  }
-
-  /* Scrollable message list */
-  .ctt-panel-list{
+  /* ── Scrollable inner container ─────────────────────────────────────── */
+  .ctl-scroll{
     flex:1;
     overflow-y:auto;
     overflow-x:hidden;
-    padding:4px 0;
-    overscroll-behavior:contain;
     -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
   }
-  .ctt-panel-list::-webkit-scrollbar{ width:3px; }
-  .ctt-panel-list::-webkit-scrollbar-thumb{
-    background:rgba(120,200,65,0.22);
-    border-radius:3px;
-  }
-
-  /* Empty-state placeholder */
-  .ctt-empty{
-    padding:24px 14px;
-    font-size:12px;
-    color:rgba(255,255,255,0.22);
-    text-align:center;
-    user-select:none;
+  .ctl-scroll::-webkit-scrollbar{ width:2px; }
+  .ctl-scroll::-webkit-scrollbar-thumb{
+    background:rgba(120,200,65,0.25);
+    border-radius:2px;
   }
 
-  /* Individual timeline item */
-  .ctt-item{
+  /* ── Section wrapper ────────────────────────────────────────────────── */
+  .ctl-sec{ }
+
+  /* ── Section header (sticky, collapsible) ───────────────────────────── */
+  .ctl-sec-hdr{
+    position:sticky;
+    top:0;
+    z-index:2;
     display:flex;
-    flex-direction:column;
-    gap:3px;
-    padding:9px 14px 9px 16px;
+    align-items:center;
+    justify-content:space-between;
+    padding:9px 8px 4px 10px;
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:0.10em;
+    text-transform:uppercase;
+    color:rgba(120,200,65,0.82);
+    background:rgba(10,10,10,0.96);
+    cursor:pointer;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    transition:color 0.14s ease;
+  }
+  .ctl-sec-hdr.is-collapsed{
+    color:rgba(255,255,255,0.28);
+  }
+
+  /* Chevron rotates 90° when section is collapsed */
+  .ctl-chevron{
+    font-size:7px;
+    opacity:0.65;
+    display:inline-block;
+    line-height:1;
+    transition:transform 180ms ease;
+  }
+  .ctl-sec-hdr.is-collapsed .ctl-chevron{
+    transform:rotate(-90deg);
+  }
+
+  /* ── Items wrapper — max-height collapse animation ───────────────────── */
+  .ctl-sec-items{
+    max-height:600px;
+    overflow:hidden;
+    transition:max-height 220ms ease-in-out, opacity 180ms ease;
+    opacity:1;
+  }
+  .ctl-sec-items.is-collapsed{
+    max-height:0 !important;
+    opacity:0;
+  }
+
+  /* ── Empty section placeholder ──────────────────────────────────────── */
+  .ctl-sec-empty{
+    padding:4px 10px 8px 14px;
+    font-size:9px;
+    color:rgba(255,255,255,0.18);
+    font-style:italic;
+  }
+
+  /* ── Timeline item ───────────────────────────────────────────────────── */
+  .ctl-item{
+    display:flex;
+    align-items:flex-start;
+    gap:5px;
+    padding:7px 8px 7px 10px;
     cursor:pointer;
     border-left:2px solid transparent;
-    transition:background 0.13s ease, border-color 0.13s ease;
+    transition:background 0.12s ease, border-color 0.12s ease;
     -webkit-tap-highlight-color:transparent;
     user-select:none;
   }
-  .ctt-item:hover{
-    background:rgba(255,255,255,0.04);
+  .ctl-item:hover{
+    background:rgba(255,255,255,0.035);
   }
-  .ctt-item:active{
-    background:rgba(255,255,255,0.06);
-  }
-  /* Active (selected) item */
-  .ctt-item.is-active{
+  .ctl-item.is-active{
     background:rgba(120,200,65,0.07);
-    border-left-color:rgba(120,200,65,0.45);
+    border-left-color:rgba(120,200,65,0.52);
   }
 
-  /* Timestamp line */
-  .ctt-item-time{
-    font-size:10px;
-    color:rgba(255,255,255,0.26);
-    font-weight:500;
-    letter-spacing:0.01em;
-    line-height:1;
+  /* Green timeline dot */
+  .ctl-dot{
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:rgba(120,200,65,0.32);
+    flex-shrink:0;
+    margin-top:3px;
+    transition:background 0.14s ease, box-shadow 0.14s ease;
   }
-  /* Message preview — one line, truncated */
-  .ctt-item-preview{
-    font-size:12.5px;
-    color:rgba(255,255,255,0.55);
+  .ctl-item.is-active .ctl-dot{
+    background:rgba(120,200,65,0.95);
+    box-shadow:0 0 7px rgba(120,200,65,0.65);
+  }
+
+  /* Text stack: time on top, duration below */
+  .ctl-info{
+    flex:1;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .ctl-time{
+    font-size:9.5px;
+    color:rgba(255,255,255,0.50);
+    font-weight:500;
+    font-variant-numeric:tabular-nums;
     white-space:nowrap;
     overflow:hidden;
     text-overflow:ellipsis;
-    line-height:1.35;
-    font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;
+    letter-spacing:0.01em;
+    line-height:1.3;
+    transition:color 0.12s ease;
   }
-  /* User messages are slightly brighter */
-  .ctt-item.is-user .ctt-item-preview{
-    color:rgba(255,255,255,0.76);
+  .ctl-item.is-active .ctl-time{
+    color:rgba(255,255,255,0.90);
+  }
+  .ctl-dur{
+    font-size:8.5px;
+    color:rgba(255,255,255,0.24);
+    white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+    line-height:1.2;
+    transition:color 0.12s ease;
+  }
+  .ctl-item.is-active .ctl-dur{
+    color:rgba(120,200,65,0.62);
   }
 
-  /* Reduced-motion: kill both animations */
+  /* ── Green glow animation on the scrolled-to message bubble ─────────── */
+  .ctl-msg-glow{
+    animation:ctlMsgGlow 1.6s ease-out forwards !important;
+    border-radius:inherit;
+  }
+  @keyframes ctlMsgGlow{
+    0%  { box-shadow:0 0 0 0 rgba(120,200,65,0); }
+    12% { box-shadow:0 0 18px 5px rgba(120,200,65,0.40); }
+    55% { box-shadow:0 0 16px 4px rgba(120,200,65,0.26); }
+    100%{ box-shadow:0 0 0 0 rgba(120,200,65,0); }
+  }
+
+  /* ── Reduced motion ──────────────────────────────────────────────────── */
   @media (prefers-reduced-motion:reduce){
-    .ctt-pill{ transition-duration:0.01ms !important; }
-    .ctt-panel{ transition-duration:0.01ms !important; }
+    .ctl-handle, .ctl-sidebar{ transition-duration:0.01ms !important; }
+    .ctl-sec-items, .ctl-chevron{ transition-duration:0.01ms !important; }
+    .ctl-msg-glow{ animation-duration:0.01ms !important; }
   }
 
 </style>
@@ -7203,118 +7283,236 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   // No other element on the page is affected.
   // ==========================================================
   // Prevent long-press "Download image" context menu on the chatbot mascot
-  // ── Timeline Sidebar ──────────────────────────────────────────────────
-  // Builds and maintains a scrollable list of all chat messages.
-  // Open: pill rotates 90° CW + panel expands simultaneously.
-  // Close: panel collapses (260ms), then pill rotates back (220ms).
+  // ── Timeline Sidebar (CTL) ────────────────────────────────────────────
+  // Handle = FLICO white vertical line on RIGHT edge, rotates 45° on open.
+  // Sidebar slides from right. Sections: Today/Yesterday/Monday/Older.
+  // Auto-tracks visible conversation. Click scrolls + glows target.
   (function setupTimeline(){
-    var root  = document.getElementById('chatTimeline');
-    var pill  = document.getElementById('chatTimelinePill');
-    var panel = document.getElementById('chatTimelinePanel');
-    var list  = document.getElementById('chatTimelineList');
-    var msgs  = document.getElementById('chatMessages');
-    if(!root || !pill || !panel || !list || !msgs) return;
+    var root    = document.getElementById('ctlRoot');
+    var hitZone = document.getElementById('ctlHit');
+    var sidebar = document.getElementById('ctlSidebar');
+    var scroll  = document.getElementById('ctlScroll');
+    var msgs    = document.getElementById('chatMessages');
+    if(!root || !hitZone || !sidebar || !scroll || !msgs) return;
 
-    var isOpen      = false;
-    var isAnimating = false;
-    var closeTimer  = null;
-    var activeItem  = null;
+    var isOpen  = false;
+    var activeRow = null;
+    var exchanges = [];
+    /* collapseState: true = expanded. Only Today expanded by default. */
+    var collapseState = { today:true, yesterday:false, monday:false, older:false };
 
-    /* Build or rebuild the full item list from current DOM messages. */
-    function buildList(){
-      var wraps = msgs.querySelectorAll('.chat-msg-wrap');
-      list.innerHTML = '';
-      activeItem = null;
+    /* ── Time helpers ──────────────────────────────────────────────── */
+    function pad2(n){ return n<10?'0'+n:''+n; }
+    function fmtHHMM(d){ return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
+    function fmtDur(ms){
+      var s = Math.max(0, Math.round(ms/1000));
+      if(s < 60) return s+' sec';
+      return Math.max(1, Math.round(s/60))+' min';
+    }
 
-      if(!wraps.length){
-        var empty = document.createElement('div');
-        empty.className = 'ctt-empty';
-        empty.textContent = 'No messages yet.';
-        list.appendChild(empty);
-        return;
+    /* Parse "08:42 AM" or "08:42" → Date (today, approx). Null on fail. */
+    function parseTime(str){
+      if(!str) return null;
+      var m = str.match(/(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i);
+      if(!m) return null;
+      var h=parseInt(m[1],10), min=parseInt(m[2],10);
+      var ap=(m[3]||'').toUpperCase();
+      if(ap==='PM'&&h!==12) h+=12;
+      if(ap==='AM'&&h===12) h=0;
+      var d=new Date(); d.setHours(h,min,0,0); return d;
+    }
+
+    /* ── Build exchange pairs (user msg + following bot msg) ─────────── */
+    function readExchanges(){
+      var wraps = Array.from(msgs.querySelectorAll('.chat-msg-wrap'));
+      var result=[]; var i=0, idx=0;
+      while(i<wraps.length){
+        var w=wraps[i];
+        if(w.classList.contains('user')){
+          var ex={userEl:w, botEl:null, idx:idx};
+          if(i+1<wraps.length && !wraps[i+1].classList.contains('user')){
+            ex.botEl=wraps[i+1]; i+=2;
+          } else { i++; }
+          /* Time range */
+          var t1=parseTime((w.querySelector('.chat-time')||{}).textContent);
+          var t2=ex.botEl ? parseTime((ex.botEl.querySelector('.chat-time')||{}).textContent) : null;
+          if(t1&&t2&&(t2-t1)>=60000){
+            ex.timeStr=fmtHHMM(t1)+'\u2013'+fmtHHMM(t2);
+            ex.durMs=t2-t1;
+          } else {
+            ex.timeStr=t1?fmtHHMM(t1):'--:--';
+            ex.durMs=t1&&t2?(t2-t1):0;
+          }
+          ex.msgBubble=w.querySelector('.chat-msg')||w;
+          w._ctlIdx=idx;
+          result.push(ex); idx++;
+        } else { i++; }
       }
+      return result;
+    }
 
-      wraps.forEach(function(wrap){
-        var role   = wrap.classList.contains('user') ? 'user' : 'bot';
-        var timeEl = wrap.querySelector('.chat-time');
-        var msgEl  = wrap.querySelector('.chat-msg');
-        if(!msgEl) return;
+    /* ── Render sidebar ────────────────────────────────────────────────── */
+    function buildSidebar(){
+      exchanges=readExchanges();
+      scroll.innerHTML='';
+      activeRow=null;
 
-        var t = timeEl ? timeEl.textContent.trim() : '';
-        var p = (msgEl.textContent || '').trim().replace(/\s+/g,' ');
+      /* All session messages are Today; others empty but shown collapsed */
+      var buckets={today:exchanges.slice().reverse(),yesterday:[],monday:[],older:[]};
+      var defs=[
+        {key:'today',    label:'Today'},
+        {key:'yesterday',label:'Yesterday'},
+        {key:'monday',   label:'Monday'},
+        {key:'older',    label:'Older'}
+      ];
 
-        var item = document.createElement('div');
-        item.className = 'ctt-item' + (role === 'user' ? ' is-user' : '');
+      defs.forEach(function(def){
+        var items   =buckets[def.key];
+        var expanded=collapseState[def.key];
 
-        var timeDiv = document.createElement('div');
-        timeDiv.className = 'ctt-item-time';
-        timeDiv.textContent = t;
+        var secWrap=document.createElement('div');
+        secWrap.className='ctl-sec';
 
-        var prevDiv = document.createElement('div');
-        prevDiv.className = 'ctt-item-preview';
-        prevDiv.textContent = p;
+        /* Header */
+        var hdr=document.createElement('div');
+        hdr.className='ctl-sec-hdr'+(expanded?'':' is-collapsed');
+        var lbl=document.createElement('span'); lbl.textContent=def.label;
+        var chv=document.createElement('span'); chv.className='ctl-chevron'; chv.textContent='\u25be';
+        hdr.appendChild(lbl); hdr.appendChild(chv);
 
-        item.appendChild(timeDiv);
-        item.appendChild(prevDiv);
+        /* Items wrapper */
+        var iw=document.createElement('div');
+        iw.className='ctl-sec-items'+(expanded?'':' is-collapsed');
 
-        /* Click: scroll to that message and highlight this item. */
-        item.addEventListener('click', function(){
-          wrap.scrollIntoView({ behavior:'smooth', block:'nearest' });
-          if(activeItem) activeItem.classList.remove('is-active');
-          activeItem = item;
-          item.classList.add('is-active');
+        if(!items.length){
+          var emp=document.createElement('div');
+          emp.className='ctl-sec-empty'; emp.textContent='None';
+          iw.appendChild(emp);
+        } else {
+          items.forEach(function(ex){
+            var row=document.createElement('div');
+            row.className='ctl-item';
+            row.dataset.idx=ex.idx;
+
+            var dot=document.createElement('div'); dot.className='ctl-dot';
+
+            var info=document.createElement('div'); info.className='ctl-info';
+            var td=document.createElement('div'); td.className='ctl-time'; td.textContent=ex.timeStr;
+            info.appendChild(td);
+            if(ex.durMs>0){
+              var dd=document.createElement('div'); dd.className='ctl-dur';
+              dd.textContent=fmtDur(ex.durMs); info.appendChild(dd);
+            }
+            row.appendChild(dot); row.appendChild(info);
+
+            row.addEventListener('click',function(e){
+              e.stopPropagation(); onItemClick(ex,row);
+            });
+            iw.appendChild(row);
+          });
+        }
+
+        /* Toggle collapse / expand */
+        hdr.addEventListener('click',function(){
+          var expanding=hdr.classList.contains('is-collapsed');
+          collapseState[def.key]=expanding;
+          hdr.classList.toggle('is-collapsed');
+          iw.classList.toggle('is-collapsed');
         });
 
-        list.appendChild(item);
+        secWrap.appendChild(hdr); secWrap.appendChild(iw);
+        scroll.appendChild(secWrap);
       });
     }
 
+    /* ── Click → close + scroll + glow ────────────────────────────────── */
+    function onItemClick(ex,row){
+      closeTimeline();
+      setTimeout(function(){
+        var target=ex.userEl;
+        if(!target) return;
+        target.scrollIntoView({behavior:'smooth',block:'start'});
+        /* Apply green glow to the message bubble after scroll begins */
+        setTimeout(function(){
+          var bub=ex.msgBubble;
+          if(!bub) return;
+          bub.classList.remove('ctl-msg-glow');
+          void bub.offsetWidth; /* force reflow so animation restarts cleanly */
+          bub.classList.add('ctl-msg-glow');
+          bub.addEventListener('animationend',function h(){
+            bub.classList.remove('ctl-msg-glow');
+            bub.removeEventListener('animationend',h);
+          });
+        }, 130);
+      }, 250);
+    }
+
+    /* ── Auto-tracking via IntersectionObserver ────────────────────────── */
+    var trackedEls=[];
+    var ioObs=new IntersectionObserver(function(entries){
+      if(!isOpen) return;
+      var best=null, bestRatio=0;
+      entries.forEach(function(e){
+        if(e.isIntersecting&&e.intersectionRatio>bestRatio){
+          bestRatio=e.intersectionRatio; best=e;
+        }
+      });
+      if(!best) return;
+      var idx=best.target._ctlIdx;
+      if(idx===undefined) return;
+      var row=scroll.querySelector('.ctl-item[data-idx="'+idx+'"]');
+      if(!row||row===activeRow) return;
+      if(activeRow) activeRow.classList.remove('is-active');
+      activeRow=row; row.classList.add('is-active');
+    },{root:msgs,threshold:[0.25,0.5,0.75]});
+
+    function observeAll(){
+      trackedEls.forEach(function(el){ioObs.unobserve(el);});
+      trackedEls=[];
+      msgs.querySelectorAll('.chat-msg-wrap.user').forEach(function(w,i){
+        w._ctlIdx=i; ioObs.observe(w); trackedEls.push(w);
+      });
+    }
+
+    /* ── Open / Close ──────────────────────────────────────────────────── */
     function openTimeline(){
       if(isOpen) return;
-      clearTimeout(closeTimer);
-      isAnimating = false;
-      isOpen = true;
-      buildList();
-      /* Both animations start at the same instant. */
-      pill.classList.add('is-rotated');
-      panel.classList.add('is-expanded');
-      panel.setAttribute('aria-hidden','false');
-      pill.setAttribute('aria-expanded','true');
+      isOpen=true;
+      buildSidebar(); observeAll();
+      root.classList.add('is-open');
       root.setAttribute('aria-hidden','false');
+      sidebar.setAttribute('aria-hidden','false');
+      hitZone.setAttribute('aria-expanded','true');
+      hitZone.setAttribute('aria-label','Close timeline');
     }
 
     function closeTimeline(){
-      if(!isOpen || isAnimating) return;
-      isOpen      = false;
-      isAnimating = true;
-      /* Phase 1 — collapse panel (260ms). */
-      panel.classList.remove('is-expanded');
-      panel.setAttribute('aria-hidden','true');
-      pill.setAttribute('aria-expanded','false');
+      if(!isOpen) return;
+      isOpen=false;
+      root.classList.remove('is-open');
       root.setAttribute('aria-hidden','true');
-      /* Phase 2 — after panel collapses, rotate pill back (220ms). */
-      clearTimeout(closeTimer);
-      closeTimer = setTimeout(function(){
-        pill.classList.remove('is-rotated');
-        isAnimating = false;
-      }, 260);
+      sidebar.setAttribute('aria-hidden','true');
+      hitZone.setAttribute('aria-expanded','false');
+      hitZone.setAttribute('aria-label','Open timeline');
     }
 
-    /* Toggle on pill click. */
-    pill.addEventListener('click', function(){
+    /* ── Events ────────────────────────────────────────────────────────── */
+    hitZone.addEventListener('click',function(e){
+      e.stopPropagation();
       if(isOpen) closeTimeline(); else openTimeline();
     });
-
-    /* Tap on messages area closes the sidebar. */
-    msgs.addEventListener('click', function(e){
-      if(isOpen && !panel.contains(e.target)) closeTimeline();
+    hitZone.addEventListener('keydown',function(e){
+      if(e.key==='Enter'||e.key===' '){e.preventDefault(); if(isOpen) closeTimeline(); else openTimeline();}
     });
-
-    /* Refresh list whenever new messages are appended. */
-    var observer = new MutationObserver(function(){
-      if(isOpen) buildList();
+    /* Close on tap anywhere in the messages area (outside sidebar) */
+    msgs.addEventListener('click',function(e){
+      if(isOpen&&!sidebar.contains(e.target)) closeTimeline();
     });
-    observer.observe(msgs, { childList:true });
+    /* Refresh sidebar when new messages appear */
+    var domObs=new MutationObserver(function(){
+      observeAll(); if(isOpen) buildSidebar();
+    });
+    domObs.observe(msgs,{childList:true});
   })();
 
   (function protectMascotIcon(){
@@ -7442,18 +7640,19 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   <div class="chat-panel-bg" aria-hidden="true">
   </div>
 
-  <!-- ── Timeline Sidebar ──────────────────────────────────────────────
-       Closed state: 7px pill on the left edge.
-       Open state:   sidebar slides in from the left (JS-driven class toggles).
-       ──────────────────────────────────────────────────────────────── -->
-  <div class="ctt-root" id="chatTimeline" aria-hidden="true">
-    <button class="ctt-pill" id="chatTimelinePill"
-            type="button"
-            aria-label="Open message timeline"
-            aria-expanded="false"></button>
-    <div class="ctt-panel" id="chatTimelinePanel" aria-hidden="true">
-      <div class="ctt-panel-hdr">Timeline</div>
-      <div class="ctt-panel-list" id="chatTimelineList"></div>
+  <!-- ── Timeline Sidebar (CTL) ─────────────────────────────────────────
+       Handle = FLICO white vertical rounded line on right edge.
+       Tap → line rotates 45° CW + sidebar slides from right simultaneously.
+       ─────────────────────────────────────────────────────────────────── -->
+  <div class="ctl-root" id="ctlRoot" aria-hidden="true">
+    <!-- Tap zone wraps the white handle line (easier tap target) -->
+    <div class="ctl-hit" id="ctlHit" role="button" tabindex="0"
+         aria-label="Open message timeline" aria-expanded="false">
+      <div class="ctl-handle" id="ctlHandle" aria-hidden="true"></div>
+    </div>
+    <!-- Sidebar slides in from right -->
+    <div class="ctl-sidebar" id="ctlSidebar" aria-hidden="true">
+      <div class="ctl-scroll" id="ctlScroll"></div>
     </div>
   </div>
 
