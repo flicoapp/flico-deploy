@@ -7318,281 +7318,7 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   // No other element on the page is affected.
   // ==========================================================
   // Prevent long-press "Download image" context menu on the chatbot mascot
-  // ── Timeline Sidebar v2 ───────────────────────────────────────────────
-  // Complete ground-up rewrite. No shared code with any previous version.
-  // Single state object, animation lock, all listeners registered once.
-  (function(){
-    'use strict';
-
-    /* ── DOM refs cached once at startup ──────────────────────────── */
-    var tlRoot   = document.getElementById('tl-root');
-    var tlHandle = document.getElementById('tl-handle');
-    var tlSide   = document.getElementById('tl-sidebar');
-    var tlScroll = document.getElementById('tl-scroll');
-    var chatMsgs = document.getElementById('chatMessages');
-    if(!tlRoot||!tlHandle||!tlSide||!tlScroll||!chatMsgs) return;
-
-    /* ── Single source of truth ────────────────────────────────────── */
-    var TL = { isOpen: false, animating: false };
-    var ANIM_MS = 255; /* CSS 230 ms + small buffer */
-
-    /* ── Collapse memory — persists across open/close cycles ─────── */
-    var collapseState = { today: true, yesterday: false, older: false };
-
-    /* ── Exchange map — rebuilt each open ────────────────────────── */
-    var xMap = Object.create(null); /* numeric idx → exchange object */
-
-    /* ── Time helpers ─────────────────────────────────────────────── */
-    function pad2(n){ return n < 10 ? '0' + n : '' + n; }
-
-    function fmt12(d){
-      var h = d.getHours(), m = d.getMinutes();
-      var ampm = h >= 12 ? 'PM' : 'AM';
-      h = h % 12 || 12;
-      return h + ':' + pad2(m) + ' ' + ampm;
-    }
-
-    /* Smart time string: single or range, smart AM/PM dedup */
-    function fmtTimeStr(t1, t2){
-      if(!t1) return '--:--';
-      if(!t2) return fmt12(t1);
-      var sameMinute = (t1.getHours()===t2.getHours() && t1.getMinutes()===t2.getMinutes());
-      if(sameMinute) return fmt12(t1);
-      var ap1 = t1.getHours() >= 12 ? 'PM' : 'AM';
-      var ap2 = t2.getHours() >= 12 ? 'PM' : 'AM';
-      var h1 = t1.getHours()%12||12, m1 = t1.getMinutes();
-      var h2 = t2.getHours()%12||12, m2 = t2.getMinutes();
-      if(ap1 === ap2){
-        return h1+':'+pad2(m1)+'\u2013'+h2+':'+pad2(m2)+' '+ap1;
-      }
-      return fmt12(t1)+'\u2013'+fmt12(t2);
-    }
-
-    function fmtDur(ms){
-      var s = Math.max(0, Math.round(ms/1000));
-      if(s < 60) return s + ' sec';
-      return Math.max(1, Math.round(s/60)) + ' min';
-    }
-
-    function parseTime(str){
-      if(!str) return null;
-      var m = str.match(/(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i);
-      if(!m) return null;
-      var h = parseInt(m[1],10), mn = parseInt(m[2],10);
-      var ap = (m[3]||'').toUpperCase();
-      if(ap==='PM' && h!==12) h += 12;
-      if(ap==='AM' && h===12) h = 0;
-      var d = new Date(); d.setHours(h, mn, 0, 0); return d;
-    }
-
-    /* ── Read exchanges from live DOM ──────────────────────────────── */
-    function readExchanges(){
-      var wraps = Array.from(chatMsgs.querySelectorAll('.chat-msg-wrap'));
-      var result = []; var i = 0, idx = 0;
-      while(i < wraps.length){
-        var w = wraps[i];
-        if(w.classList.contains('user')){
-          var ex = { userEl:w, botEl:null, idx:idx };
-          if(i+1 < wraps.length && !wraps[i+1].classList.contains('user')){
-            ex.botEl = wraps[i+1]; i += 2;
-          } else { i++; }
-          var t1 = parseTime((w.querySelector('.chat-time')||{}).textContent);
-          var t2 = ex.botEl
-            ? parseTime((ex.botEl.querySelector('.chat-time')||{}).textContent)
-            : null;
-          ex.timeStr = fmtTimeStr(t1, t2);
-          ex.durMs   = (t1 && t2) ? Math.max(0, t2-t1) : 0;
-          ex.bubble  = w.querySelector('.chat-msg') || w;
-          w._tlIdx   = idx;
-          result.push(ex); idx++;
-        } else { i++; }
-      }
-      return result;
-    }
-
-    /* ── Build sidebar DOM (zero inline listeners) ─────────────────── */
-    function buildSidebar(){
-      var exchanges = readExchanges();
-      xMap = Object.create(null);
-      exchanges.forEach(function(ex){ xMap[ex.idx] = ex; });
-      tlScroll.innerHTML = '';
-
-      /* All current-session messages → Today bucket */
-      var buckets = { today: exchanges.slice().reverse(), yesterday: [], older: [] };
-      var sections = [
-        { key:'today',     label:'Today'     },
-        { key:'yesterday', label:'Yesterday' },
-        { key:'older',     label:'Older'     }
-      ];
-
-      sections.forEach(function(sec){
-        var expanded = collapseState[sec.key];
-        var items    = buckets[sec.key];
-
-        var wrap = document.createElement('div');
-        wrap.className = 'tl-sec';
-
-        /* Header */
-        var hdr = document.createElement('div');
-        hdr.className = 'tl-sec-hdr' + (expanded ? '' : ' tl-collapsed');
-        hdr.dataset.secKey = sec.key;
-        var lbl = document.createElement('span'); lbl.textContent = sec.label;
-        var chv = document.createElement('span');
-        chv.className = 'tl-chevron'; chv.textContent = '\u25be';
-        hdr.appendChild(lbl); hdr.appendChild(chv);
-
-        /* Items wrapper */
-        var iw = document.createElement('div');
-        iw.className = 'tl-sec-items' + (expanded ? '' : ' tl-collapsed');
-
-        if(!items.length){
-          var emp = document.createElement('div');
-          emp.className = 'tl-sec-empty'; emp.textContent = 'None';
-          iw.appendChild(emp);
-        } else {
-          items.forEach(function(ex){
-            var row = document.createElement('div');
-            row.className = 'tl-item';
-            row.dataset.idx = ex.idx;
-
-            var dot  = document.createElement('div'); dot.className = 'tl-dot';
-            var info = document.createElement('div'); info.className = 'tl-info';
-            var ts   = document.createElement('span'); ts.className = 'tl-time';
-            ts.textContent = ex.timeStr;
-            info.appendChild(ts);
-            if(ex.durMs > 0){
-              var ds = document.createElement('span'); ds.className = 'tl-dur';
-              ds.textContent = fmtDur(ex.durMs);
-              info.appendChild(ds);
-            }
-            row.appendChild(dot); row.appendChild(info);
-            iw.appendChild(row);
-          });
-        }
-
-        wrap.appendChild(hdr); wrap.appendChild(iw);
-        tlScroll.appendChild(wrap);
-      });
-    }
-
-    /* ── Navigate to message ───────────────────────────────────────── */
-    function navigateTo(ex){
-      tlClose(); /* starts close animation */
-      setTimeout(function(){
-        if(!ex.userEl) return;
-        ex.userEl.scrollIntoView({ behavior:'smooth', block:'start' });
-        setTimeout(function(){
-          var b = ex.bubble; if(!b) return;
-          b.classList.remove('tl-msg-glow');
-          void b.offsetWidth; /* reflow to restart animation */
-          b.classList.add('tl-msg-glow');
-          b.addEventListener('animationend', function h(){
-            b.classList.remove('tl-msg-glow');
-            b.removeEventListener('animationend', h);
-          });
-        }, 160);
-      }, 260);
-    }
-
-    /* ── IntersectionObserver — highlights active item ─────────────── */
-    var tracked = [];
-    var io = new IntersectionObserver(function(entries){
-      if(!TL.isOpen) return;
-      var best = null, bestR = 0;
-      entries.forEach(function(e){
-        if(e.isIntersecting && e.intersectionRatio > bestR){
-          bestR = e.intersectionRatio; best = e;
-        }
-      });
-      if(!best) return;
-      var idx = best.target._tlIdx;
-      if(idx === undefined) return;
-      var prev = tlScroll.querySelector('.tl-item.tl-active');
-      var next = tlScroll.querySelector('.tl-item[data-idx="' + idx + '"]');
-      if(!next || next === prev) return;
-      if(prev) prev.classList.remove('tl-active');
-      next.classList.add('tl-active');
-    }, { root: chatMsgs, threshold: [0.25, 0.5, 0.75] });
-
-    function reobserve(){
-      tracked.forEach(function(el){ io.unobserve(el); });
-      tracked = [];
-      chatMsgs.querySelectorAll('.chat-msg-wrap.user').forEach(function(w, i){
-        w._tlIdx = i; io.observe(w); tracked.push(w);
-      });
-    }
-
-    /* ── Open ─────────────────────────────────────────────────────── */
-    function tlOpen(){
-      if(TL.isOpen || TL.animating) return;
-      TL.animating = true;
-      TL.isOpen    = true;
-      buildSidebar();
-      reobserve();
-      tlRoot.classList.add('tl-open');
-      tlSide.setAttribute('aria-hidden', 'false');
-      tlHandle.setAttribute('aria-expanded', 'true');
-      tlHandle.setAttribute('aria-label', 'Close message timeline');
-      setTimeout(function(){ TL.animating = false; }, ANIM_MS);
-    }
-
-    /* ── Close ────────────────────────────────────────────────────── */
-    function tlClose(){
-      if(!TL.isOpen || TL.animating) return;
-      TL.animating = true;
-      TL.isOpen    = false;
-      tlRoot.classList.remove('tl-open');
-      tlSide.setAttribute('aria-hidden', 'true');
-      tlHandle.setAttribute('aria-expanded', 'false');
-      tlHandle.setAttribute('aria-label', 'Open message timeline');
-      setTimeout(function(){ TL.animating = false; }, ANIM_MS);
-    }
-
-    /* ══════════════════════════════════════════════════════════════════
-       LISTENERS — registered ONCE at startup, NEVER inside render
-       ══════════════════════════════════════════════════════════════════ */
-
-    /* 1 ── Handle: toggle open/close */
-    tlHandle.addEventListener('click', function(e){
-      e.stopPropagation();
-      TL.isOpen ? tlClose() : tlOpen();
-    });
-
-    /* 2 ── Outside tap: close (capture so it fires before other handlers) */
-    document.addEventListener('click', function(e){
-      if(!TL.isOpen || TL.animating) return;
-      if(tlRoot.contains(e.target)) return; /* inside widget — ignore */
-      tlClose();
-    }, true);
-
-    /* 3 ── Delegated: section collapse + item navigation (one handler) */
-    tlScroll.addEventListener('click', function(e){
-      /* Section header */
-      var hdr = e.target.closest('.tl-sec-hdr');
-      if(hdr){
-        var key = hdr.dataset.secKey; if(!key) return;
-        var expanding = hdr.classList.contains('tl-collapsed');
-        collapseState[key] = expanding;
-        hdr.classList.toggle('tl-collapsed');
-        var iw = hdr.nextElementSibling;
-        if(iw) iw.classList.toggle('tl-collapsed');
-        return;
-      }
-      /* Item */
-      var item = e.target.closest('.tl-item');
-      if(item){
-        var idx = parseInt(item.dataset.idx, 10);
-        if(!isNaN(idx) && xMap[idx]) navigateTo(xMap[idx]);
-      }
-    });
-
-    /* 4 ── DOM mutation: refresh data when messages arrive */
-    new MutationObserver(function(){
-      reobserve();
-      if(TL.isOpen) buildSidebar();
-    }).observe(chatMsgs, { childList:true });
-
-  })();
+  /* Timeline Sidebar v2 IIFE moved to second <script> block (after DOM) */
 
   (function protectMascotIcon(){
     const mascot = document.getElementById('mascotFigure');
@@ -7989,6 +7715,237 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   } else {
     run();
   }
+})();
+
+// ── Timeline Sidebar v2 ───────────────────────────────────────────────
+// Placed here (after all HTML) so getElementById() finds its elements.
+// Single state object, animation lock, all listeners registered once.
+(function(){
+  'use strict';
+
+  /* ── DOM refs cached once at startup ──────────────────────────── */
+  var tlRoot   = document.getElementById('tl-root');
+  var tlHandle = document.getElementById('tl-handle');
+  var tlSide   = document.getElementById('tl-sidebar');
+  var tlScroll = document.getElementById('tl-scroll');
+  var chatMsgs = document.getElementById('chatMessages');
+  if(!tlRoot||!tlHandle||!tlSide||!tlScroll||!chatMsgs) return;
+
+  /* ── Single source of truth ────────────────────────────────────── */
+  var TL = { isOpen: false, animating: false };
+  var ANIM_MS = 255;
+
+  /* ── Collapse memory ──────────────────────────────────────────── */
+  var collapseState = { today: true, yesterday: false, older: false };
+
+  /* ── Exchange map — rebuilt each open ────────────────────────── */
+  var xMap = Object.create(null);
+
+  /* ── Time helpers ─────────────────────────────────────────────── */
+  function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+  function fmt12(d){
+    var h = d.getHours(), m = d.getMinutes();
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + pad2(m) + ' ' + ampm;
+  }
+  function fmtTimeStr(t1, t2){
+    if(!t1) return '--:--';
+    if(!t2) return fmt12(t1);
+    if(t1.getHours()===t2.getHours() && t1.getMinutes()===t2.getMinutes()) return fmt12(t1);
+    var ap1 = t1.getHours() >= 12 ? 'PM' : 'AM';
+    var ap2 = t2.getHours() >= 12 ? 'PM' : 'AM';
+    var h1 = t1.getHours()%12||12, m1 = t1.getMinutes();
+    var h2 = t2.getHours()%12||12, m2 = t2.getMinutes();
+    if(ap1 === ap2) return h1+':'+pad2(m1)+'\u2013'+h2+':'+pad2(m2)+' '+ap1;
+    return fmt12(t1)+'\u2013'+fmt12(t2);
+  }
+  function fmtDur(ms){
+    var s = Math.max(0, Math.round(ms/1000));
+    if(s < 60) return s + ' sec';
+    return Math.max(1, Math.round(s/60)) + ' min';
+  }
+  function parseTime(str){
+    if(!str) return null;
+    var m = str.match(/(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i);
+    if(!m) return null;
+    var h = parseInt(m[1],10), mn = parseInt(m[2],10);
+    var ap = (m[3]||'').toUpperCase();
+    if(ap==='PM' && h!==12) h += 12;
+    if(ap==='AM' && h===12) h = 0;
+    var d = new Date(); d.setHours(h, mn, 0, 0); return d;
+  }
+
+  /* ── Read exchanges from live DOM ──────────────────────────────── */
+  function readExchanges(){
+    var wraps = Array.from(chatMsgs.querySelectorAll('.chat-msg-wrap'));
+    var result = []; var i = 0, idx = 0;
+    while(i < wraps.length){
+      var w = wraps[i];
+      if(w.classList.contains('user')){
+        var ex = { userEl:w, botEl:null, idx:idx };
+        if(i+1 < wraps.length && !wraps[i+1].classList.contains('user')){
+          ex.botEl = wraps[i+1]; i += 2;
+        } else { i++; }
+        var t1 = parseTime((w.querySelector('.chat-time')||{}).textContent);
+        var t2 = ex.botEl ? parseTime((ex.botEl.querySelector('.chat-time')||{}).textContent) : null;
+        ex.timeStr = fmtTimeStr(t1, t2);
+        ex.durMs   = (t1 && t2) ? Math.max(0, t2-t1) : 0;
+        ex.bubble  = w.querySelector('.chat-msg') || w;
+        w._tlIdx   = idx;
+        result.push(ex); idx++;
+      } else { i++; }
+    }
+    return result;
+  }
+
+  /* ── Build sidebar DOM — zero inline listeners ─────────────────── */
+  function buildSidebar(){
+    var exchanges = readExchanges();
+    xMap = Object.create(null);
+    exchanges.forEach(function(ex){ xMap[ex.idx] = ex; });
+    tlScroll.innerHTML = '';
+    var buckets = { today: exchanges.slice().reverse(), yesterday: [], older: [] };
+    var sections = [
+      { key:'today',     label:'Today'     },
+      { key:'yesterday', label:'Yesterday' },
+      { key:'older',     label:'Older'     }
+    ];
+    sections.forEach(function(sec){
+      var expanded = collapseState[sec.key];
+      var items    = buckets[sec.key];
+      var wrap = document.createElement('div'); wrap.className = 'tl-sec';
+      var hdr = document.createElement('div');
+      hdr.className = 'tl-sec-hdr' + (expanded ? '' : ' tl-collapsed');
+      hdr.dataset.secKey = sec.key;
+      var lbl = document.createElement('span'); lbl.textContent = sec.label;
+      var chv = document.createElement('span'); chv.className = 'tl-chevron'; chv.textContent = '\u25be';
+      hdr.appendChild(lbl); hdr.appendChild(chv);
+      var iw = document.createElement('div');
+      iw.className = 'tl-sec-items' + (expanded ? '' : ' tl-collapsed');
+      if(!items.length){
+        var emp = document.createElement('div'); emp.className = 'tl-sec-empty'; emp.textContent = 'None';
+        iw.appendChild(emp);
+      } else {
+        items.forEach(function(ex){
+          var row = document.createElement('div'); row.className = 'tl-item'; row.dataset.idx = ex.idx;
+          var dot = document.createElement('div'); dot.className = 'tl-dot';
+          var info = document.createElement('div'); info.className = 'tl-info';
+          var ts = document.createElement('span'); ts.className = 'tl-time'; ts.textContent = ex.timeStr;
+          info.appendChild(ts);
+          if(ex.durMs > 0){
+            var ds = document.createElement('span'); ds.className = 'tl-dur'; ds.textContent = fmtDur(ex.durMs);
+            info.appendChild(ds);
+          }
+          row.appendChild(dot); row.appendChild(info); iw.appendChild(row);
+        });
+      }
+      wrap.appendChild(hdr); wrap.appendChild(iw); tlScroll.appendChild(wrap);
+    });
+  }
+
+  /* ── Navigate to message ───────────────────────────────────────── */
+  function navigateTo(ex){
+    tlClose();
+    setTimeout(function(){
+      if(!ex.userEl) return;
+      ex.userEl.scrollIntoView({ behavior:'smooth', block:'start' });
+      setTimeout(function(){
+        var b = ex.bubble; if(!b) return;
+        b.classList.remove('tl-msg-glow');
+        void b.offsetWidth;
+        b.classList.add('tl-msg-glow');
+        b.addEventListener('animationend', function h(){
+          b.classList.remove('tl-msg-glow');
+          b.removeEventListener('animationend', h);
+        });
+      }, 160);
+    }, 260);
+  }
+
+  /* ── IntersectionObserver — active item tracking ───────────────── */
+  var tracked = [];
+  var io = new IntersectionObserver(function(entries){
+    if(!TL.isOpen) return;
+    var best = null, bestR = 0;
+    entries.forEach(function(e){
+      if(e.isIntersecting && e.intersectionRatio > bestR){ bestR = e.intersectionRatio; best = e; }
+    });
+    if(!best) return;
+    var idx = best.target._tlIdx; if(idx === undefined) return;
+    var prev = tlScroll.querySelector('.tl-item.tl-active');
+    var next = tlScroll.querySelector('.tl-item[data-idx="' + idx + '"]');
+    if(!next || next === prev) return;
+    if(prev) prev.classList.remove('tl-active');
+    next.classList.add('tl-active');
+  }, { root: chatMsgs, threshold: [0.25, 0.5, 0.75] });
+
+  function reobserve(){
+    tracked.forEach(function(el){ io.unobserve(el); }); tracked = [];
+    chatMsgs.querySelectorAll('.chat-msg-wrap.user').forEach(function(w, i){
+      w._tlIdx = i; io.observe(w); tracked.push(w);
+    });
+  }
+
+  /* ── Open ─────────────────────────────────────────────────────── */
+  function tlOpen(){
+    if(TL.isOpen || TL.animating) return;
+    TL.animating = true; TL.isOpen = true;
+    buildSidebar(); reobserve();
+    tlRoot.classList.add('tl-open');
+    tlSide.setAttribute('aria-hidden', 'false');
+    tlHandle.setAttribute('aria-expanded', 'true');
+    tlHandle.setAttribute('aria-label', 'Close message timeline');
+    setTimeout(function(){ TL.animating = false; }, ANIM_MS);
+  }
+
+  /* ── Close ────────────────────────────────────────────────────── */
+  function tlClose(){
+    if(!TL.isOpen || TL.animating) return;
+    TL.animating = true; TL.isOpen = false;
+    tlRoot.classList.remove('tl-open');
+    tlSide.setAttribute('aria-hidden', 'true');
+    tlHandle.setAttribute('aria-expanded', 'false');
+    tlHandle.setAttribute('aria-label', 'Open message timeline');
+    setTimeout(function(){ TL.animating = false; }, ANIM_MS);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     LISTENERS — registered ONCE, NEVER inside render functions
+     ══════════════════════════════════════════════════════════════════ */
+
+  /* 1 — handle toggle */
+  tlHandle.addEventListener('click', function(e){
+    e.stopPropagation();
+    TL.isOpen ? tlClose() : tlOpen();
+  });
+
+  /* 2 — outside-tap close (capture phase: fires before target's handlers) */
+  document.addEventListener('click', function(e){
+    if(!TL.isOpen || TL.animating) return;
+    if(tlRoot.contains(e.target)) return;
+    tlClose();
+  }, true);
+
+  /* 3 — delegated: section headers + item navigation */
+  tlScroll.addEventListener('click', function(e){
+    var hdr = e.target.closest('.tl-sec-hdr');
+    if(hdr){
+      var key = hdr.dataset.secKey; if(!key) return;
+      collapseState[key] = hdr.classList.contains('tl-collapsed');
+      hdr.classList.toggle('tl-collapsed');
+      var iw = hdr.nextElementSibling; if(iw) iw.classList.toggle('tl-collapsed');
+      return;
+    }
+    var item = e.target.closest('.tl-item');
+    if(item){ var idx = parseInt(item.dataset.idx,10); if(!isNaN(idx) && xMap[idx]) navigateTo(xMap[idx]); }
+  });
+
+  /* 4 — refresh on new messages */
+  new MutationObserver(function(){
+    reobserve(); if(TL.isOpen) buildSidebar();
+  }).observe(chatMsgs, { childList:true });
+
 })();
 </script>
 </body>
