@@ -3316,14 +3316,14 @@
     pointer-events:none; /* children opt in */
   }
 
-  /* ── Hit zone — invisible 40×80px tap target centred on the handle ── */
+  /* ── Hit zone — 44×80px tap target centred on the handle (44px = Apple HIG min) */
   .ctl-hit{
     position:absolute;
     right:0;
     top:50%;
     transform:translateY(-50%);
-    width:40px;
-    height:80px;
+    width:44px;   /* ≥ 44px — Apple HIG / WCAG minimum touch target */
+    height:80px;  /* taller than 44px for comfort; spec says ≥ 44px */
     display:flex;
     align-items:center;
     justify-content:flex-end;
@@ -3331,7 +3331,7 @@
     box-sizing:border-box;
     cursor:pointer;
     pointer-events:auto;
-    z-index:2; /* above sidebar so tap always lands here */
+    z-index:30; /* must beat sidebar (z:1) AND .ctl-root (z:20) at all times */
     -webkit-tap-highlight-color:transparent;
   }
 
