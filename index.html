@@ -3304,8 +3304,9 @@
 
   /* ============================================================
      Timeline Sidebar v2  (#tl-*)
-     Polish pass — clockwise rotation, #D6FF57 accent, message
-     previews, tap ripple, improved scroll. Architecture intact.
+     Final polish — original FLICO green, 90° CW rotation per tap,
+     dual-bubble highlight, User+AI preview, row press animation.
+     Architecture unchanged. Only behavior and visuals polished.
      ============================================================ */
 
   /* ── Root overlay ─────────────────────────────────────────────────── */
@@ -3341,35 +3342,36 @@
     touch-action:manipulation;
   }
   #tl-handle:focus-visible{
-    outline:2px solid rgba(214,255,87,0.65);
+    outline:2px solid rgba(120,200,65,0.65);
     outline-offset:3px;
     border-radius:10px;
   }
 
-  /* ── Tap ripple — premium glow pulse on handle click ─────────────── */
-  #tl-handle::after{
-    content:'';
-    position:absolute;
-    inset:6px;
-    border-radius:999px;
-    background:radial-gradient(circle at center,
-      rgba(214,255,87,0.28) 0%,
-      rgba(214,255,87,0.10) 45%,
-      transparent 72%);
-    opacity:0;
-    transform:scale(0.7);
-    pointer-events:none;
+  /* ── Handle press: scale 0.96 → spring to 1 (180ms) ─────────────── */
+  #tl-handle.tl-pressing{
+    animation:tlHandlePress 180ms cubic-bezier(0.34,1.56,0.64,1) forwards;
   }
-  #tl-handle.tl-tapping::after{
-    animation:tlHandleTap 210ms ease-out forwards;
-  }
-  @keyframes tlHandleTap{
-    0%  { opacity:0;    transform:scale(0.7); }
-    25% { opacity:1;    transform:scale(1);   }
-    100%{ opacity:0;    transform:scale(1.25);}
+  @keyframes tlHandlePress{
+    0%  { transform:translateY(-50%) scale(0.96); }
+    55% { transform:translateY(-50%) scale(1.02); }
+    100%{ transform:translateY(-50%) scale(1.00); }
   }
 
-  /* ── Pill — glass capsule. Rotation managed by JS (clockwise-only) ── */
+  /* ── Pill neon glow on press ──────────────────────────────────────── */
+  #tl-handle.tl-pressing #tl-pill{
+    animation:tlPillGlow 200ms ease-out forwards;
+  }
+  @keyframes tlPillGlow{
+    0%  { box-shadow:0 4px 20px rgba(0,0,0,0.38),0 1px 6px rgba(0,0,0,0.24),
+                     inset 0 1px 0 rgba(255,255,255,0.07); }
+    30% { box-shadow:0 0 0 3px rgba(120,200,65,0.36),
+                     0 0 20px 6px rgba(120,200,65,0.48),
+                     inset 0 1px 0 rgba(255,255,255,0.07); }
+    100%{ box-shadow:0 4px 20px rgba(0,0,0,0.38),0 1px 6px rgba(0,0,0,0.24),
+                     inset 0 1px 0 rgba(255,255,255,0.07); }
+  }
+
+  /* ── Pill — glass capsule. JS controls rotation (90° CW per tap) ─── */
   #tl-pill{
     width:32px;
     height:56px;
@@ -3378,7 +3380,7 @@
     -webkit-backdrop-filter:blur(20px);
     border:1px solid rgba(255,255,255,0.09);
     border-radius:999px;
-    box-shadow:0 4px 20px rgba(0,0,0,0.38), 0 1px 6px rgba(0,0,0,0.24),
+    box-shadow:0 4px 20px rgba(0,0,0,0.38),0 1px 6px rgba(0,0,0,0.24),
                inset 0 1px 0 rgba(255,255,255,0.07);
     display:flex;
     align-items:center;
@@ -3389,7 +3391,7 @@
     flex-shrink:0;
   }
 
-  /* ── Line image — exact asset, screen blend, slightly taller ─────── */
+  /* ── Line image — exact asset, screen blend ──────────────────────── */
   #tl-line-img{
     width:72%;
     height:78%;
@@ -3414,7 +3416,7 @@
     -webkit-backdrop-filter:blur(24px);
     border:1px solid rgba(255,255,255,0.07);
     border-radius:18px;
-    box-shadow:-6px 0 40px rgba(0,0,0,0.55), 0 0 1px rgba(0,0,0,0.8);
+    box-shadow:-6px 0 40px rgba(0,0,0,0.55),0 0 1px rgba(0,0,0,0.8);
     transform:translateX(calc(100% + 24px));
     transition:transform 230ms ease-in-out;
     will-change:transform;
@@ -3447,16 +3449,16 @@
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
+    position:relative;
   }
   #tl-scroll::-webkit-scrollbar{ width:2px; }
   #tl-scroll::-webkit-scrollbar-thumb{
-    background:rgba(214,255,87,0.28);
+    background:rgba(120,200,65,0.28);
     border-radius:2px;
   }
 
   /* ── Section ──────────────────────────────────────────────────────── */
   .tl-sec{}
-
   .tl-sec-hdr{
     position:sticky;
     top:0;
@@ -3469,17 +3471,14 @@
     font-weight:700;
     letter-spacing:0.10em;
     text-transform:uppercase;
-    color:rgba(214,255,87,0.80);
+    color:rgba(120,200,65,0.88);
     background:rgba(11,11,11,0.97);
     cursor:pointer;
     user-select:none;
     -webkit-tap-highlight-color:transparent;
     transition:color 0.15s;
   }
-  .tl-sec-hdr.tl-collapsed{
-    color:rgba(255,255,255,0.28);
-  }
-
+  .tl-sec-hdr.tl-collapsed{ color:rgba(255,255,255,0.28); }
   .tl-chevron{
     font-size:9px;
     opacity:0.65;
@@ -3487,21 +3486,14 @@
     transition:transform 180ms ease;
     line-height:1;
   }
-  .tl-sec-hdr.tl-collapsed .tl-chevron{
-    transform:rotate(-90deg);
-  }
-
+  .tl-sec-hdr.tl-collapsed .tl-chevron{ transform:rotate(-90deg); }
   .tl-sec-items{
-    max-height:1200px;
+    max-height:2400px;
     overflow:hidden;
     transition:max-height 220ms ease-in-out, opacity 180ms ease;
     opacity:1;
   }
-  .tl-sec-items.tl-collapsed{
-    max-height:0 !important;
-    opacity:0;
-  }
-
+  .tl-sec-items.tl-collapsed{ max-height:0 !important; opacity:0; }
   .tl-sec-empty{
     padding:4px 14px 10px;
     font-size:9px;
@@ -3509,42 +3501,49 @@
     font-style:italic;
   }
 
-  /* ── Item row ─────────────────────────────────────────────────────── */
+  /* ── Item row — premium spring press ─────────────────────────────── */
   .tl-item{
     display:flex;
-    align-items:center;
+    align-items:flex-start;
     gap:9px;
     padding:9px 14px 9px 12px;
     cursor:pointer;
     border-left:2px solid transparent;
-    transition:background 0.15s, border-color 0.15s;
+    transition:background 0.15s, border-color 0.15s,
+                transform 150ms cubic-bezier(0.34,1.56,0.64,1),
+                filter 150ms ease;
     -webkit-tap-highlight-color:transparent;
     user-select:none;
     touch-action:manipulation;
+    pointer-events:auto;
+    position:relative;
+    z-index:1;
   }
   .tl-item:active{
+    transform:scale(0.98);
+    filter:brightness(1.10);
     background:rgba(255,255,255,0.04);
   }
   .tl-item.tl-active{
-    background:rgba(214,255,87,0.06);
-    border-left-color:rgba(214,255,87,0.50);
+    background:rgba(120,200,65,0.07);
+    border-left-color:rgba(120,200,65,0.55);
   }
 
   .tl-dot{
     width:6px;
     height:6px;
     border-radius:50%;
-    background:rgba(214,255,87,0.28);
+    background:rgba(120,200,65,0.30);
     flex-shrink:0;
-    margin-top:2px; /* align with first text line */
+    margin-top:4px;
     transition:background 0.12s, box-shadow 0.12s;
   }
   .tl-item.tl-active .tl-dot{
-    background:rgba(214,255,87,1);
-    box-shadow:0 0 7px rgba(214,255,87,0.65);
+    background:rgba(120,200,65,1);
+    box-shadow:0 0 7px rgba(120,200,65,0.70);
   }
 
-  /* ── Info column — time on top, preview below ─────────────────────── */
+  /* ── Info column — time + User/AI preview ────────────────────────── */
   .tl-info{
     flex:1;
     min-width:0;
@@ -3566,41 +3565,46 @@
     max-width:100%;
     transition:color 0.12s;
   }
-  .tl-item.tl-active .tl-time{
-    color:rgba(214,255,87,0.95);
-  }
-  /* ── User message preview ─────────────────────────────────────────── */
+  .tl-item.tl-active .tl-time{ color:rgba(120,200,65,0.95); }
+
   .tl-preview{
-    font-size:11px;
-    color:rgba(255,255,255,0.30);
+    font-size:10.5px;
+    line-height:1.3;
     white-space:nowrap;
     overflow:hidden;
     text-overflow:ellipsis;
     max-width:100%;
-    line-height:1.25;
     transition:color 0.12s;
   }
-  .tl-item.tl-active .tl-preview{
-    color:rgba(255,255,255,0.50);
+  .tl-preview-user{ color:rgba(255,255,255,0.38); }
+  .tl-preview-bot { color:rgba(255,255,255,0.24); }
+  .tl-preview-lbl{
+    font-weight:600;
+    font-size:9.5px;
+    letter-spacing:0.04em;
+    margin-right:3px;
   }
+  .tl-item.tl-active .tl-preview-user{ color:rgba(255,255,255,0.58); }
+  .tl-item.tl-active .tl-preview-bot { color:rgba(255,255,255,0.38); }
 
-  /* ── Glow on navigated-to message ────────────────────────────────── */
+  /* ── Glow on both navigated-to bubbles ───────────────────────────── */
   .tl-msg-glow{
-    animation:tlMsgGlow 1.4s ease-out forwards !important;
+    animation:tlMsgGlow 1.2s ease-out forwards !important;
     border-radius:inherit;
   }
   @keyframes tlMsgGlow{
-    0%  { box-shadow:0 0 0 0 rgba(214,255,87,0);    }
-    15% { box-shadow:0 0 20px 6px rgba(214,255,87,0.38); }
-    60% { box-shadow:0 0 14px 4px rgba(214,255,87,0.20); }
-    100%{ box-shadow:0 0 0 0 rgba(214,255,87,0);    }
+    0%  { box-shadow:0 0 0 0 rgba(120,200,65,0);    }
+    15% { box-shadow:0 0 18px 5px rgba(120,200,65,0.42); }
+    55% { box-shadow:0 0 12px 4px rgba(120,200,65,0.22); }
+    100%{ box-shadow:0 0 0 0 rgba(120,200,65,0);    }
   }
 
   /* ── Reduced motion ───────────────────────────────────────────────── */
   @media(prefers-reduced-motion:reduce){
     #tl-pill,#tl-sidebar{ transition-duration:0.01ms !important; }
     .tl-sec-items,.tl-chevron{ transition-duration:0.01ms !important; }
-    .tl-msg-glow,#tl-handle::after{ animation-duration:0.01ms !important; }
+    .tl-msg-glow,#tl-handle{ animation-duration:0.01ms !important; }
+    .tl-item{ transition-duration:0.01ms !important; }
   }
 
 </style>
@@ -7743,13 +7747,13 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   }
 })();
 
-// ── Timeline Sidebar v2 ───────────────────────────────────────────────
+// ── Timeline Sidebar v2 — Final Polish ───────────────────────────────
 // Placed here (after all HTML) so getElementById() finds its elements.
 // Single state object, animation lock, all listeners registered once.
 (function(){
   'use strict';
 
-  /* ── DOM refs cached once at startup ──────────────────────────── */
+  /* ── DOM refs cached once ──────────────────────────────────────── */
   var tlRoot   = document.getElementById('tl-root');
   var tlHandle = document.getElementById('tl-handle');
   var tlPill   = document.getElementById('tl-pill');
@@ -7758,30 +7762,28 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   var chatMsgs = document.getElementById('chatMessages');
   if(!tlRoot||!tlHandle||!tlPill||!tlSide||!tlScroll||!chatMsgs) return;
 
-  /* ── Single source of truth ────────────────────────────────────── */
+  /* ── State ─────────────────────────────────────────────────────── */
   var TL = { isOpen: false, animating: false };
 
-  /* ── Clockwise-only pill rotation ─────────────────────────────────
-     Open:  +45° clockwise  (220 ms)
-     Close: +135° clockwise (340 ms) → lands on next 180° multiple,
-            which is visually identical to 0° for a symmetric line.
-     rotDeg accumulates so CSS always transitions in +direction.     */
-  var rotDeg   = 0;
-  var OPEN_MS  = 225;
-  var CLOSE_MS = 340;
-  var ANIM_MS  = CLOSE_MS; /* overall guard uses the longer of the two */
+  /* ── Pill rotation ─────────────────────────────────────────────────
+     Every tap (open or close) rotates exactly +90° clockwise.
+     rotDeg accumulates so the transition always goes in + direction.
+     After each close, angle is normalised (% 360) to stay compact.
+     220 ms, ease-in-out, per spec.                                  */
+  var rotDeg = 0;
+  var ROT_MS = 220;
 
-  function setPillRot(deg, durationMs){
-    tlPill.style.transition = durationMs > 0
-      ? 'transform ' + durationMs + 'ms cubic-bezier(0.45,0,0.55,1)'
+  function setPillRot(deg, durMs){
+    tlPill.style.transition = durMs > 0
+      ? 'transform ' + durMs + 'ms ease-in-out'
       : 'none';
-    tlPill.style.transform  = 'rotate(' + deg + 'deg)';
+    tlPill.style.transform = 'rotate(' + deg + 'deg)';
   }
 
   /* ── Collapse memory ──────────────────────────────────────────── */
   var collapseState = { today: true, yesterday: false, older: false };
 
-  /* ── Exchange map — rebuilt each open ────────────────────────── */
+  /* ── Exchange map ─────────────────────────────────────────────── */
   var xMap = Object.create(null);
 
   /* ── Time helpers ─────────────────────────────────────────────── */
@@ -7795,90 +7797,95 @@ Every reply should feel like it comes directly from the official FLICO team.`;
   function fmtTimeStr(t1, t2){
     if(!t1) return '--:--';
     if(!t2) return fmt12(t1);
-    if(t1.getHours()===t2.getHours() && t1.getMinutes()===t2.getMinutes()) return fmt12(t1);
-    var ap1 = t1.getHours() >= 12 ? 'PM' : 'AM';
-    var ap2 = t2.getHours() >= 12 ? 'PM' : 'AM';
-    var h1 = t1.getHours()%12||12, m1 = t1.getMinutes();
-    var h2 = t2.getHours()%12||12, m2 = t2.getMinutes();
-    if(ap1 === ap2) return h1+':'+pad2(m1)+'\u2013'+h2+':'+pad2(m2)+' '+ap1;
+    if(t1.getHours()===t2.getHours()&&t1.getMinutes()===t2.getMinutes()) return fmt12(t1);
+    var ap1=t1.getHours()>=12?'PM':'AM', ap2=t2.getHours()>=12?'PM':'AM';
+    var h1=t1.getHours()%12||12, m1=t1.getMinutes();
+    var h2=t2.getHours()%12||12, m2=t2.getMinutes();
+    if(ap1===ap2) return h1+':'+pad2(m1)+'\u2013'+h2+':'+pad2(m2)+' '+ap1;
     return fmt12(t1)+'\u2013'+fmt12(t2);
   }
   function parseTime(str){
     if(!str) return null;
-    var m = str.match(/(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i);
-    if(!m) return null;
-    var h = parseInt(m[1],10), mn = parseInt(m[2],10);
-    var ap = (m[3]||'').toUpperCase();
-    if(ap==='PM' && h!==12) h += 12;
-    if(ap==='AM' && h===12) h = 0;
-    var d = new Date(); d.setHours(h, mn, 0, 0); return d;
+    var m=str.match(/(\d{1,2}):(\d{2})(?:\s*(am|pm))?/i); if(!m) return null;
+    var h=parseInt(m[1],10), mn=parseInt(m[2],10), ap=(m[3]||'').toUpperCase();
+    if(ap==='PM'&&h!==12) h+=12;
+    if(ap==='AM'&&h===12) h=0;
+    var d=new Date(); d.setHours(h,mn,0,0); return d;
+  }
+  function snippet(el, maxLen){
+    if(!el) return '';
+    return (el.textContent||'').replace(/\s+/g,' ').trim().slice(0, maxLen);
   }
 
-  /* ── Read exchanges from live DOM ──────────────────────────────── */
+  /* ── Read exchanges ────────────────────────────────────────────── */
   function readExchanges(){
     var wraps = Array.from(chatMsgs.querySelectorAll('.chat-msg-wrap'));
-    var result = []; var i = 0, idx = 0;
-    while(i < wraps.length){
-      var w = wraps[i];
+    var result=[]; var i=0, idx=0;
+    while(i<wraps.length){
+      var w=wraps[i];
       if(w.classList.contains('user')){
-        var ex = { userEl:w, botEl:null, idx:idx };
-        if(i+1 < wraps.length && !wraps[i+1].classList.contains('user')){
-          ex.botEl = wraps[i+1]; i += 2;
+        var ex={ userEl:w, botEl:null, idx:idx };
+        if(i+1<wraps.length && !wraps[i+1].classList.contains('user')){
+          ex.botEl=wraps[i+1]; i+=2;
         } else { i++; }
-        var t1 = parseTime((w.querySelector('.chat-time')||{}).textContent);
-        var t2 = ex.botEl ? parseTime((ex.botEl.querySelector('.chat-time')||{}).textContent) : null;
-        ex.timeStr = fmtTimeStr(t1, t2);
-        ex.bubble  = w.querySelector('.chat-msg') || w;
-        /* Extract user message text for preview (first 40 chars) */
-        var msgEl = w.querySelector('.chat-msg');
-        var rawText = msgEl ? (msgEl.textContent || '').replace(/\s+/g,' ').trim() : '';
-        ex.preview = rawText.slice(0, 40) || '';
-        w._tlIdx   = idx;
-        result.push(ex); idx++;
+        var t1=parseTime((w.querySelector('.chat-time')||{}).textContent);
+        var t2=ex.botEl?parseTime((ex.botEl.querySelector('.chat-time')||{}).textContent):null;
+        ex.timeStr   = fmtTimeStr(t1,t2);
+        ex.bubble    = w.querySelector('.chat-msg') || w;
+        ex.botBubble = ex.botEl ? (ex.botEl.querySelector('.chat-msg')||ex.botEl) : null;
+        ex.userSnip  = snippet(w.querySelector('.chat-msg'), 32);
+        ex.botSnip   = snippet(ex.botEl&&ex.botEl.querySelector('.chat-msg'), 32);
+        w._tlIdx=idx; result.push(ex); idx++;
       } else { i++; }
     }
     return result;
   }
 
-  /* ── Build sidebar DOM — zero inline listeners ─────────────────── */
+  /* ── Build sidebar — zero inline listeners ─────────────────────── */
   function buildSidebar(){
-    var exchanges = readExchanges();
-    xMap = Object.create(null);
-    exchanges.forEach(function(ex){ xMap[ex.idx] = ex; });
-    tlScroll.innerHTML = '';
-    var buckets = { today: exchanges.slice().reverse(), yesterday: [], older: [] };
-    var sections = [
-      { key:'today',     label:'Today'     },
-      { key:'yesterday', label:'Yesterday' },
-      { key:'older',     label:'Older'     }
-    ];
+    var exchanges=readExchanges();
+    xMap=Object.create(null);
+    exchanges.forEach(function(ex){ xMap[ex.idx]=ex; });
+    tlScroll.innerHTML='';
+    var buckets={ today:exchanges.slice().reverse(), yesterday:[], older:[] };
+    var sections=[{key:'today',label:'Today'},{key:'yesterday',label:'Yesterday'},{key:'older',label:'Older'}];
     sections.forEach(function(sec){
-      var expanded = collapseState[sec.key];
-      var items    = buckets[sec.key];
-      var wrap = document.createElement('div'); wrap.className = 'tl-sec';
-      var hdr = document.createElement('div');
-      hdr.className = 'tl-sec-hdr' + (expanded ? '' : ' tl-collapsed');
-      hdr.dataset.secKey = sec.key;
-      var lbl = document.createElement('span'); lbl.textContent = sec.label;
-      var chv = document.createElement('span'); chv.className = 'tl-chevron'; chv.textContent = '\u25be';
+      var expanded=collapseState[sec.key], items=buckets[sec.key];
+      var wrap=document.createElement('div'); wrap.className='tl-sec';
+      /* Section header */
+      var hdr=document.createElement('div');
+      hdr.className='tl-sec-hdr'+(expanded?'':' tl-collapsed');
+      hdr.dataset.secKey=sec.key;
+      var lbl=document.createElement('span'); lbl.textContent=sec.label;
+      var chv=document.createElement('span'); chv.className='tl-chevron'; chv.textContent='\u25be';
       hdr.appendChild(lbl); hdr.appendChild(chv);
-      var iw = document.createElement('div');
-      iw.className = 'tl-sec-items' + (expanded ? '' : ' tl-collapsed');
+      /* Items wrapper */
+      var iw=document.createElement('div');
+      iw.className='tl-sec-items'+(expanded?'':' tl-collapsed');
       if(!items.length){
-        var emp = document.createElement('div'); emp.className = 'tl-sec-empty'; emp.textContent = 'None';
+        var emp=document.createElement('div'); emp.className='tl-sec-empty'; emp.textContent='None';
         iw.appendChild(emp);
       } else {
         items.forEach(function(ex){
-          var row  = document.createElement('div'); row.className = 'tl-item'; row.dataset.idx = ex.idx;
-          var dot  = document.createElement('div'); dot.className = 'tl-dot';
-          var info = document.createElement('div'); info.className = 'tl-info';
-          /* Line 1 — timestamp */
-          var ts = document.createElement('span'); ts.className = 'tl-time'; ts.textContent = ex.timeStr;
+          var row=document.createElement('div'); row.className='tl-item'; row.dataset.idx=ex.idx;
+          var dot=document.createElement('div'); dot.className='tl-dot';
+          var info=document.createElement('div'); info.className='tl-info';
+          /* Timestamp */
+          var ts=document.createElement('span'); ts.className='tl-time'; ts.textContent=ex.timeStr;
           info.appendChild(ts);
-          /* Line 2 — user message preview */
-          if(ex.preview){
-            var pv = document.createElement('span'); pv.className = 'tl-preview'; pv.textContent = ex.preview;
-            info.appendChild(pv);
+          /* User preview */
+          if(ex.userSnip){
+            var pu=document.createElement('span'); pu.className='tl-preview tl-preview-user';
+            var lu=document.createElement('span'); lu.className='tl-preview-lbl'; lu.textContent='You:';
+            pu.appendChild(lu); pu.appendChild(document.createTextNode(ex.userSnip));
+            info.appendChild(pu);
+          }
+          /* AI preview */
+          if(ex.botSnip){
+            var pb=document.createElement('span'); pb.className='tl-preview tl-preview-bot';
+            var lb=document.createElement('span'); lb.className='tl-preview-lbl'; lb.textContent='AI:';
+            pb.appendChild(lb); pb.appendChild(document.createTextNode(ex.botSnip));
+            info.appendChild(pb);
           }
           row.appendChild(dot); row.appendChild(info); iw.appendChild(row);
         });
@@ -7887,132 +7894,143 @@ Every reply should feel like it comes directly from the official FLICO team.`;
     });
   }
 
-  /* ── Navigate to message — smooth scroll with comfortable offset ── */
+  /* ── Glow a single bubble then clean up ───────────────────────── */
+  function glowBubble(b){
+    if(!b) return;
+    b.classList.remove('tl-msg-glow');
+    void b.offsetWidth;
+    b.classList.add('tl-msg-glow');
+    b.addEventListener('animationend', function h(){
+      b.classList.remove('tl-msg-glow');
+      b.removeEventListener('animationend',h);
+    });
+  }
+
+  /* ── Navigate: close → smooth scroll → highlight both bubbles ─── */
   function navigateTo(ex){
     tlClose();
     setTimeout(function(){
       if(!ex.userEl) return;
-      /* Scroll the chat container so the message lands 80 px from top */
-      var containerRect = chatMsgs.getBoundingClientRect();
-      var elemRect      = ex.userEl.getBoundingClientRect();
-      var offset        = elemRect.top - containerRect.top - 80;
-      chatMsgs.scrollTo({ top: chatMsgs.scrollTop + offset, behavior: 'smooth' });
-      /* Glow highlight — fires after scroll has had time to settle */
+      /* Calculate offset so message sits 80px from container top */
+      var cRect=chatMsgs.getBoundingClientRect();
+      var eRect=ex.userEl.getBoundingClientRect();
+      var target=Math.max(0, chatMsgs.scrollTop+(eRect.top-cRect.top)-80);
+      chatMsgs.scrollTo({ top:target, behavior:'smooth' });
+      /* Highlight both bubbles once scroll settles (~500ms) */
       setTimeout(function(){
-        var b = ex.bubble; if(!b) return;
-        b.classList.remove('tl-msg-glow');
-        void b.offsetWidth;
-        b.classList.add('tl-msg-glow');
-        b.addEventListener('animationend', function h(){
-          b.classList.remove('tl-msg-glow');
-          b.removeEventListener('animationend', h);
-        });
-      }, 420);
+        glowBubble(ex.bubble);
+        glowBubble(ex.botBubble);
+      }, 520);
     }, 270);
   }
 
-  /* ── IntersectionObserver — active item tracking ───────────────── */
-  var tracked = [];
-  var io = new IntersectionObserver(function(entries){
+  /* ── IntersectionObserver — active-item sync ───────────────────── */
+  var tracked=[];
+  var io=new IntersectionObserver(function(entries){
     if(!TL.isOpen) return;
-    var best = null, bestR = 0;
+    var best=null, bestR=0;
     entries.forEach(function(e){
-      if(e.isIntersecting && e.intersectionRatio > bestR){ bestR = e.intersectionRatio; best = e; }
+      if(e.isIntersecting&&e.intersectionRatio>bestR){ bestR=e.intersectionRatio; best=e; }
     });
     if(!best) return;
-    var idx = best.target._tlIdx; if(idx === undefined) return;
-    var prev = tlScroll.querySelector('.tl-item.tl-active');
-    var next = tlScroll.querySelector('.tl-item[data-idx="' + idx + '"]');
-    if(!next || next === prev) return;
+    var idx=best.target._tlIdx; if(idx===undefined) return;
+    var prev=tlScroll.querySelector('.tl-item.tl-active');
+    var next=tlScroll.querySelector('.tl-item[data-idx="'+idx+'"]');
+    if(!next||next===prev) return;
     if(prev) prev.classList.remove('tl-active');
     next.classList.add('tl-active');
-  }, { root: chatMsgs, threshold: [0.25, 0.5, 0.75] });
+  },{root:chatMsgs, threshold:[0.25,0.5,0.75]});
 
   function reobserve(){
-    tracked.forEach(function(el){ io.unobserve(el); }); tracked = [];
-    chatMsgs.querySelectorAll('.chat-msg-wrap.user').forEach(function(w, i){
-      w._tlIdx = i; io.observe(w); tracked.push(w);
+    tracked.forEach(function(el){ io.unobserve(el); }); tracked=[];
+    chatMsgs.querySelectorAll('.chat-msg-wrap.user').forEach(function(w,i){
+      w._tlIdx=i; io.observe(w); tracked.push(w);
     });
+  }
+
+  /* ── Press effect — scale spring + pill glow ──────────────────── */
+  function firePressEffect(){
+    tlHandle.classList.remove('tl-pressing');
+    void tlHandle.offsetWidth;
+    tlHandle.classList.add('tl-pressing');
+    setTimeout(function(){ tlHandle.classList.remove('tl-pressing'); }, 220);
   }
 
   /* ── Open ─────────────────────────────────────────────────────── */
   function tlOpen(){
-    if(TL.isOpen || TL.animating) return;
-    TL.animating = true; TL.isOpen = true;
+    if(TL.isOpen||TL.animating) return;
+    TL.animating=true; TL.isOpen=true;
     buildSidebar(); reobserve();
-    rotDeg += 45;
-    setPillRot(rotDeg, OPEN_MS);
+    rotDeg+=90; setPillRot(rotDeg, ROT_MS);
     tlRoot.classList.add('tl-open');
-    tlSide.setAttribute('aria-hidden', 'false');
-    tlHandle.setAttribute('aria-expanded', 'true');
-    tlHandle.setAttribute('aria-label', 'Close message timeline');
-    setTimeout(function(){ TL.animating = false; }, OPEN_MS);
+    tlSide.setAttribute('aria-hidden','false');
+    tlHandle.setAttribute('aria-expanded','true');
+    tlHandle.setAttribute('aria-label','Close message timeline');
+    setTimeout(function(){ TL.animating=false; }, ROT_MS);
   }
 
   /* ── Close ────────────────────────────────────────────────────── */
   function tlClose(){
-    if(!TL.isOpen || TL.animating) return;
-    TL.animating = true; TL.isOpen = false;
-    /* Continue clockwise +135° to reach next 180° multiple (vertical) */
-    rotDeg += 135;
-    setPillRot(rotDeg, CLOSE_MS);
-    /* After animation: normalise angle so number stays small */
-    var snapTarget = rotDeg % 360;
+    if(!TL.isOpen||TL.animating) return;
+    TL.animating=true; TL.isOpen=false;
+    rotDeg+=90; setPillRot(rotDeg, ROT_MS);
+    /* Normalise after animation so angle stays compact */
+    var snap=rotDeg%360;
     setTimeout(function(){
-      setPillRot(snapTarget, 0);
-      rotDeg = snapTarget;
-      TL.animating = false;
-    }, CLOSE_MS + 16);
+      setPillRot(snap,0); rotDeg=snap; TL.animating=false;
+    }, ROT_MS+16);
     tlRoot.classList.remove('tl-open');
-    tlSide.setAttribute('aria-hidden', 'true');
-    tlHandle.setAttribute('aria-expanded', 'false');
-    tlHandle.setAttribute('aria-label', 'Open message timeline');
+    tlSide.setAttribute('aria-hidden','true');
+    tlHandle.setAttribute('aria-expanded','false');
+    tlHandle.setAttribute('aria-label','Open message timeline');
   }
 
-  /* ── Tap ripple helper ────────────────────────────────────────── */
-  function fireTapRipple(){
-    tlHandle.classList.remove('tl-tapping');
-    void tlHandle.offsetWidth; /* reflow to restart animation */
-    tlHandle.classList.add('tl-tapping');
-    setTimeout(function(){ tlHandle.classList.remove('tl-tapping'); }, 220);
+  /* ── Debounced rebuild (avoids race during rapid message arrival) ─ */
+  var _rebuildTimer=null;
+  function scheduleRebuild(){
+    clearTimeout(_rebuildTimer);
+    _rebuildTimer=setTimeout(function(){
+      reobserve(); if(TL.isOpen) buildSidebar();
+    }, 100);
   }
 
   /* ══════════════════════════════════════════════════════════════════
-     LISTENERS — registered ONCE, NEVER inside render functions
+     LISTENERS — registered ONCE at startup
      ══════════════════════════════════════════════════════════════════ */
 
-  /* 1 — handle toggle + tap ripple */
+  /* 1 — handle: press effect + toggle */
   tlHandle.addEventListener('click', function(e){
     e.stopPropagation();
-    fireTapRipple();
+    firePressEffect();
     TL.isOpen ? tlClose() : tlOpen();
   });
 
-  /* 2 — outside-tap close (capture phase: fires before target's handlers) */
+  /* 2 — outside tap: close (capture so it runs before bubble handlers) */
   document.addEventListener('click', function(e){
-    if(!TL.isOpen || TL.animating) return;
+    if(!TL.isOpen||TL.animating) return;
     if(tlRoot.contains(e.target)) return;
     tlClose();
   }, true);
 
-  /* 3 — delegated: section headers + item navigation */
+  /* 3 — delegated: section collapse + item navigation */
   tlScroll.addEventListener('click', function(e){
-    var hdr = e.target.closest('.tl-sec-hdr');
+    var hdr=e.target.closest('.tl-sec-hdr');
     if(hdr){
-      var key = hdr.dataset.secKey; if(!key) return;
-      collapseState[key] = hdr.classList.contains('tl-collapsed');
+      var key=hdr.dataset.secKey; if(!key) return;
+      collapseState[key]=hdr.classList.contains('tl-collapsed');
       hdr.classList.toggle('tl-collapsed');
-      var iw = hdr.nextElementSibling; if(iw) iw.classList.toggle('tl-collapsed');
+      var iw=hdr.nextElementSibling; if(iw) iw.classList.toggle('tl-collapsed');
       return;
     }
-    var item = e.target.closest('.tl-item');
-    if(item){ var idx = parseInt(item.dataset.idx,10); if(!isNaN(idx) && xMap[idx]) navigateTo(xMap[idx]); }
+    var item=e.target.closest('.tl-item');
+    if(item){
+      var idx=parseInt(item.dataset.idx,10);
+      if(!isNaN(idx)&&xMap[idx]) navigateTo(xMap[idx]);
+    }
   });
 
-  /* 4 — refresh on new messages */
-  new MutationObserver(function(){
-    reobserve(); if(TL.isOpen) buildSidebar();
-  }).observe(chatMsgs, { childList:true });
+  /* 4 — debounced refresh when messages arrive */
+  new MutationObserver(scheduleRebuild).observe(chatMsgs,{ childList:true });
 
 })();
 </script>
